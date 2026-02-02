@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Money Tracker 💰</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <h1>💰 My Money Tracker</h1>
+            <p class="subtitle">Simple. Easy. Free.</p>
+        </header>
+
+        <!-- Balance Card -->
+        <div class="balance-card">
+            <div class="balance-label">Total Balance</div>
+            <div class="balance-amount" id="totalBalance">Rp 0</div>
+            <div class="balance-details">
+                <div class="balance-item income">
+                    <span class="label">Income</span>
+                    <span class="amount" id="totalIncome">Rp 0</span>
+                </div>
+                <div class="balance-item expense">
+                    <span class="label">Expense</span>
+                    <span class="amount" id="totalExpense">Rp 0</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Add Transaction Form -->
+        <div class="form-card">
+            <h2>Add Transaction</h2>
+            <form id="transactionForm">
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <input type="text" id="description" placeholder="e.g., Lunch, Salary, Shopping" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="amount">Amount (Rp)</label>
+                    <input type="number" id="amount" placeholder="0" required min="0">
+                </div>
+
+                <div class="form-group">
+                    <label for="category">Category</label>
+                    <select id="category" required>
+                        <option value="">Select Category</option>
+                        <option value="Food">🍔 Food</option>
+                        <option value="Transport">🚗 Transport</option>
+                        <option value="Shopping">🛍️ Shopping</option>
+                        <option value="Bills">💡 Bills</option>
+                        <option value="Salary">💼 Salary</option>
+                        <option value="Other">📦 Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label>Type</label>
+                    <div class="type-buttons">
+                        <button type="button" class="type-btn active" data-type="expense">
+                            ➖ Expense
+                        </button>
+                        <button type="button" class="type-btn" data-type="income">
+                            ➕ Income
+                        </button>
+                    </div>
+                    <input type="hidden" id="type" value="expense">
+                </div>
+
+                <button type="submit" class="submit-btn">Add Transaction</button>
+            </form>
+        </div>
+
+        <!-- Transactions List -->
+        <div class="transactions-card">
+            <div class="transactions-header">
+                <h2>Recent Transactions</h2>
+                <button class="clear-btn" id="clearAll">Clear All</button>
+            </div>
+            <div id="transactionsList" class="transactions-list">
+                <div class="empty-state">
+                    <p>No transactions yet</p>
+                    <p class="empty-subtitle">Add your first transaction above!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
