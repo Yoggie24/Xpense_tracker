@@ -1,94 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Money Tracker 💰</title>
-    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="assets/css/style.css">
+    <!-- Chart.js for data visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- SheetJS for Excel (.xlsx) support -->
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
+
 <body>
     <div class="container">
+        <!-- Tab Navigation -->
+        <nav class="tab-nav">
+            <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
+            <button class="tab-btn" id="tab-transactions" onclick="switchTab('transactions')">Transactions</button>
+        </nav>
+
         <!-- Header -->
         <header class="header">
-            <h1>💰 My Money Tracker</h1>
-            <p class="subtitle">Simple. Easy. Free.</p>
+            <p class="subtitle">Overview</p>
+            <h1>My Money Tracker</h1>
         </header>
 
-        <!-- Balance Card -->
-        <div class="balance-card">
-            <div class="balance-label">Total Balance</div>
-            <div class="balance-amount" id="totalBalance">Rp 0</div>
-            <div class="balance-details">
-                <div class="balance-item income">
-                    <span class="label">Income</span>
-                    <span class="amount" id="totalIncome">Rp 0</span>
-                </div>
-                <div class="balance-item expense">
-                    <span class="label">Expense</span>
-                    <span class="amount" id="totalExpense">Rp 0</span>
-                </div>
-            </div>
-        </div>
-
-        <!-- Add Transaction Form -->
-        <div class="form-card">
-            <h2>Add Transaction</h2>
-            <form id="transactionForm">
-                <div class="form-group">
-                    <label for="description">Description</label>
-                    <input type="text" id="description" placeholder="e.g., Lunch, Salary, Shopping" required>
-                </div>
-
-                <div class="form-group">
-                    <label for="amount">Amount (Rp)</label>
-                    <input type="number" id="amount" placeholder="0" required min="0">
-                </div>
-
-                <div class="form-group">
-                    <label for="category">Category</label>
-                    <select id="category" required>
-                        <option value="">Select Category</option>
-                        <option value="Food">🍔 Food</option>
-                        <option value="Transport">🚗 Transport</option>
-                        <option value="Shopping">🛍️ Shopping</option>
-                        <option value="Bills">💡 Bills</option>
-                        <option value="Salary">💼 Salary</option>
-                        <option value="Other">📦 Other</option>
-                    </select>
-                </div>
-
-                <div class="form-group">
-                    <label>Type</label>
-                    <div class="type-buttons">
-                        <button type="button" class="type-btn active" data-type="expense">
-                            ➖ Expense
-                        </button>
-                        <button type="button" class="type-btn" data-type="income">
-                            ➕ Income
-                        </button>
+        <!-- DASHBOARD PAGE -->
+        <div id="dashboard-page" class="page active">
+            <!-- Balance Card -->
+            <div class="balance-card">
+                <div class="balance-label">Total Net Worth</div>
+                <div class="balance-amount" id="totalBalance">Rp 0</div>
+                <div class="balance-details">
+                    <div class="balance-item income">
+                        <span class="label">Total Income</span>
+                        <span class="amount" id="totalIncome">Rp 0</span>
                     </div>
-                    <input type="hidden" id="type" value="expense">
+                    <div class="balance-item expense">
+                        <span class="label">Total Outcome</span>
+                        <span class="amount" id="totalExpense">Rp 0</span>
+                    </div>
                 </div>
+            </div>
 
-                <button type="submit" class="submit-btn">Add Transaction</button>
-            </form>
+            <!-- Daily Expense Chart -->
+            <div class="summary-card">
+                <div class="card-header">
+                    <h2>Daily Outcome Trend</h2>
+                </div>
+                <div class="chart-container">
+                    <canvas id="dailyChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Monthly Category Charts -->
+            <div class="charts-grid">
+                <div class="summary-card">
+                    <div class="card-header">
+                        <h2>Monthly Income Breakdown</h2>
+                    </div>
+                    <div class="chart-container pie">
+                        <canvas id="incomePieChart"></canvas>
+                    </div>
+                </div>
+                <div class="summary-card">
+                    <div class="card-header">
+                        <h2>Monthly Outcome Breakdown</h2>
+                    </div>
+                    <div class="chart-container pie">
+                        <canvas id="outcomePieChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Asset Summary (Rasio) -->
+            <div class="summary-card">
+                <div class="card-header">
+                    <h2>Asset Summary (Rasio)</h2>
+                </div>
+                <div class="table-container">
+                    <!-- IDR Assets -->
+                    <div class="asset-section">
+                        <h3 class="section-title idr">IDR Assets</h3>
+                        <div class="table-container">
+                            <table id="assetTableIDR">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Balance</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- USD Assets -->
+                    <div class="asset-section">
+                        <h3 class="section-title usd">USD Assets</h3>
+                        <div class="table-container">
+                            <table id="assetTableUSD">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>USD Balance</th>
+                                        <th>Kurs</th>
+                                        <th>Total IDR</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Investment Assets -->
+                    <div class="asset-section">
+                        <h3 class="section-title invest">Investment Assets</h3>
+                        <div class="table-container">
+                            <table id="assetTableInvest">
+                                <thead>
+                                    <tr>
+                                        <th>Item</th>
+                                        <th>Quantity</th>
+                                        <th>Price/Unit</th>
+                                        <th>Total Value</th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Net Worth Summary -->
+                    <div class="net-worth-summary">
+                        <span>Total Net Worth:</span>
+                        <span id="totalCurrent" class="total-amount">Rp 0</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Periodic Summary -->
+            <div class="summary-card periodic-summary">
+                <div class="periodic-item">
+                    <span class="label">🗓️ This Week Outcome</span>
+                    <span class="amount" id="weeklyOutcome">Rp 0</span>
+                </div>
+                <div class="periodic-item">
+                    <span class="label">📅 This Month Outcome</span>
+                    <span class="amount" id="monthlyOutcome">Rp 0</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Transactions List -->
-        <div class="transactions-card">
-            <div class="transactions-header">
-                <h2>Recent Transactions</h2>
-                <button class="clear-btn" id="clearAll">Clear All</button>
+        <!-- TRANSACTIONS PAGE -->
+        <div id="transactions-page" class="page">
+            <!-- Add Transaction Form -->
+            <div class="form-card">
+                <div class="card-header">
+                    <h2>Add Transaction</h2>
+                    <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+                </div>
+
+                <!-- Settings Panel (Hidden by default) -->
+                <div id="settingsPanel" class="settings-panel hidden">
+                    <h3>Configuration Settings</h3>
+                    <p class="settings-desc">Sync with your Keuangan.xlsx file.</p>
+                    <div class="settings-actions">
+                        <button class="export-btn" id="exportConfig" style="display: none;">💾 Download Config</button>
+                        <label for="importConfig" class="upload-btn">
+                            📂 Sync with Keuangan.xlsx
+                            <input type="file" id="importConfig" accept=".xlsx, .xls, .csv" hidden>
+                        </label>
+                    </div>
+                </div>
+
+                <form id="transactionForm">
+                    <div class="form-group">
+                        <label for="date">Date</label>
+                        <input type="date" id="date" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="description">Description</label>
+                        <input type="text" id="description" placeholder="e.g., Lunch, Salary, Shopping" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="amount">Amount</label>
+                        <input type="number" id="amount" placeholder="0" required min="0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="category">Category</label>
+                        <select id="category" required>
+                            <option value="">Select Category</option>
+                            <!-- Dynamic options will be injected here -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="paymentMethod">Payment Method</label>
+                        <select id="paymentMethod" required>
+                            <option value="">Select Payment Method</option>
+                            <!-- Dynamic options will be injected here -->
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Type</label>
+                        <div class="type-buttons">
+                            <button type="button" class="type-btn active" data-type="expense">
+                                ➖ Outcome
+                            </button>
+                            <button type="button" class="type-btn" data-type="income">
+                                ➕ Income
+                            </button>
+                        </div>
+                        <input type="hidden" id="type" value="expense">
+                    </div>
+
+                    <button type="submit" class="submit-btn">Add Transaction</button>
+                </form>
             </div>
-            <div id="transactionsList" class="transactions-list">
-                <div class="empty-state">
-                    <p>No transactions yet</p>
-                    <p class="empty-subtitle">Add your first transaction above!</p>
+
+            <!-- Transactions List -->
+            <div class="transactions-card">
+                <div class="transactions-header">
+                    <h2>Recent Transactions</h2>
+                    <div class="header-buttons">
+                        <button class="export-btn" id="exportExcel">📊 Export Excel</button>
+                        <button class="clear-btn" id="clearAll">Clear All</button>
+                    </div>
+                </div>
+                <div id="transactionsList" class="transactions-list">
+                    <div class="empty-state">
+                        <p>No transactions yet</p>
+                        <p class="empty-subtitle">Add your first transaction above!</p>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 
-    <script src="script.js"></script>
+    <script src="assets/js/script.js"></script>
 </body>
+
 </html>

@@ -1,0 +1,22 @@
+﻿Sheets: ['Money_tracker', 'Rasio', 'List']
+
+Sheet: Money_tracker
+Columns: ['No', 'Date', 'Jenis', 'Metode Pembayaran', 'Kategori', 'Mata uang', 'Keterangan', 'Jumlah', 'Unnamed: 8', 16600]
+Sample data (first 2 rows):
+  No       Date    Jenis Metode Pembayaran Kategori Mata uang     Keterangan   Jumlah  Unnamed: 8  16600
+0  1 2026-02-02  Outcome           Seabank  Fashion       IDR  Potong rambut  40000.0         NaN    NaN
+1  2 2026-02-02  Outcome           Seabank    Makan       IDR  Roti dan susu  42900.0         NaN    NaN
+
+Sheet: Rasio
+Columns: ['Unnamed: 0', 'Unnamed: 1', 'Unnamed: 2', 'Unnamed: 3', 'Unnamed: 4', 'Unnamed: 5', 'Unnamed: 6']
+Sample data (first 2 rows):
+  Unnamed: 0 Unnamed: 1 Unnamed: 2 Unnamed: 3      Unnamed: 4 Unnamed: 5  Unnamed: 6
+0       Item        IDR        USD      Nilai  Harga saat ini      Total  Presentase
+1       Emas          0          0          3         2657000    7971000    0.209077
+
+Sheet: List
+Columns: ['Metode', 'Unnamed: 1', 'Jenis', 'Unnamed: 3', 'Mata Uang', 'Unnamed: 5', 'Outcome List', 'Unnamed: 7', 'Income List']
+Sample data (first 2 rows):
+      Metode  Unnamed: 1    Jenis  Unnamed: 3 Mata Uang  Unnamed: 5 Outcome List  Unnamed: 7 Income List
+0  Shopeepay         NaN   Income         NaN       IDR         NaN        Makan         NaN        Gaji
+1      Gopay         NaN  Outcome         NaN       USD         NaN      Minuman         NaN       Bonus

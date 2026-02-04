@@ -17,3 +17,13 @@ npm-debug.log*
 # Temporary files
 *.tmp
 .cache/
+headers_output.txt
+
+# Personal Data
+*.xlsx
+*.csv
+!money-tracker-config.csv
+
+# Development scripts
+scripts/inspect_*.py
+scripts/patch_*.py
