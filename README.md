@@ -78,6 +78,24 @@ Since you have already pushed your code to GitHub, you can host it for free in j
 **Click that link to open your live app!**
 You can now share this URL with your phone or friends.
 
+## 🔄 How to Sync Data (Local to Online)
+
+Because this app runs in your browser, data is stored separately on each device/website.
+To move your data from Local (PC) to Online (GitHub Pages):
+
+1. **On Local (PC):**
+   - Open the app.
+   - Go to **Transactions** tab.
+   - Click **📊 Export Excel**.
+   - A file named `Keuangan-yyyy-mm-dd.xlsx` will download.
+
+2. **On Online (GitHub Pages):**
+   - Open your hosted app link.
+   - Go to **Settings** tab.
+   - Under **Import Data**, click **📄 Choose File...**.
+   - Select the `Keuangan-....xlsx` file you just downloaded.
+   - Done! Your transactions and settings are now synced.
+
 ## 📂 Files Explained (Simple!)
 
 ```
