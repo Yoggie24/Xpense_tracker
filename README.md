@@ -41,6 +41,13 @@ A beautiful, simple money tracker that works on **both PC and mobile phone**!
 - See all **income** and **expenses**
 - View all your **recent transactions** below
 
+### Step 4: Advanced Features
+
+- **Settings Tab**: Click the "Settings" tab to manage configurations.
+- **Import Data**: Upload your `Keuangan.xlsx` file to sync data from Excel.
+- **Live Rates**: Check current USD and Gold prices in the Settings tab.
+- **Export**: Click "Export Excel" to save your transactions.
+
 ## 📱 Use on Mobile Phone
 
 ### Option 1: Same WiFi Network
@@ -54,19 +61,22 @@ A beautiful, simple money tracker that works on **both PC and mobile phone**!
    - Open browser
    - Type: `http://YOUR-IP-ADDRESS/path/to/index.html`
 
-### Option 2: Upload to Web (Free)
+### Option 2: Host on GitHub Pages (Recommended 🚀)
 
-Upload these 3 files to any free hosting:
-- `index.html`
-- `style.css`
-- `script.js`
+Since you have already pushed your code to GitHub, you can host it for free in just a few clicks!
 
-**Free hosting options:**
-- [GitHub Pages](https://pages.github.com/) (recommended)
-- [Netlify](https://www.netlify.com/)
-- [Vercel](https://vercel.com/)
+**How to Setup:**
+1. Go to your repository on GitHub.
+2. Click on **Settings** (tab at the top).
+3. In the left sidebar, click on **Pages**.
+4. Under **Source**, select `Deploy from a branch`.
+5. Under **Branch**, select `main` (or `master`) and keep folder as `/ (root)`.
+6. Click **Save**.
+7. Wait about 30-60 seconds, then refresh the page.
+8. You will see a link like: `https://yourusername.github.io/repository-name/`
 
-Then access from anywhere!
+**Click that link to open your live app!**
+You can now share this URL with your phone or friends.
 
 ## 📂 Files Explained (Simple!)
 
