@@ -251,7 +251,7 @@ function exportConfig() {
 
 // Import config (Supports both CSV and Excel)
 // Modified to specifically handle Keuangan.xlsx structure
-function importConfig(file) {
+function importConfig(file, isSilent = false) {
     const reader = new FileReader();
     reader.onload = function (e) {
         const data = new Uint8Array(e.target.result);
@@ -409,13 +409,18 @@ function importConfig(file) {
             saveConfig(newConfig);
             populateSelects();
             updateBalance();
-            alert('Settings and Transactions synced successfully with ' + file.name + '!');
-        } else {
+            if (!isSilent) {
+                alert('Settings and Transactions synced successfully with ' + file.name + '!');
+            }
+        } else if (!isSilent) {
             alert('Could not find configuration in the uploaded file. Please use Keuangan.xlsx structure.');
         }
     };
     reader.readAsArrayBuffer(file);
 }
+
+// End of importConfig
+
 
 // Calculate totals including starting balances and periodic summaries
 function calculateTotals() {
@@ -1427,6 +1432,9 @@ function init() {
     checkLogin();
     updateSecurityUI();
 
+    // Auto-sync data if empty
+    autoSyncOnStartup();
+
     // Listen for Enter key on PIN input
     const loginPinInput = document.getElementById('login-pin');
     if (loginPinInput) {
@@ -1440,13 +1448,18 @@ function init() {
 document.addEventListener('DOMContentLoaded', init);
 
 // Fetch Keuangan.xlsx from repository (GitHub Pages)
-async function fetchRepoData() {
-    if (!confirm('This will load Keuangan.xlsx from the repository and overwrite your current data. Continue?')) return;
+// Fetch Keuangan.xlsx from repository (GitHub Pages)
+async function fetchRepoData(isAuto = false) {
+    if (!isAuto && !confirm('This will load Keuangan.xlsx from the repository and overwrite your current data. Continue?')) return;
 
     // Find the button that triggered this (fallback if event.target is missing)
-    let btn = event.target;
-    // Walk up if click was on icon inside button
-    if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
+    let btn = null;
+    try {
+        btn = event.target;
+        if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
+    } catch (e) {
+        // event might not be defined in auto-sync context
+    }
 
     let originalText = '📥 Load from Repository (Keuangan.xlsx)';
     if (btn) {
@@ -1461,21 +1474,31 @@ async function fetchRepoData() {
         if (resp.ok) {
             const blob = await resp.blob();
             // Use existing importConfig logic
-            // Add filename for success message
             // Create a fake file object
             const file = new File([blob], 'Keuangan.xlsx (Repo)', { type: resp.headers.get('content-type') });
-            importConfig(file);
-        } else {
+            importConfig(file, isAuto); // Pass silent flag
+        } else if (!isAuto) {
             alert('Could not find Keuangan.xlsx in the repository. Please ensure it is pushed.');
         }
     } catch (e) {
         console.error('Fetch error:', e);
-        alert('Error loading data from repository: ' + e.message);
+        if (!isAuto) alert('Error loading data from repository: ' + e.message);
     } finally {
         if (btn) {
             btn.innerHTML = originalText;
             btn.disabled = false;
         }
+    }
+}
+
+// Automatically sync from repo if storage is empty
+async function autoSyncOnStartup() {
+    const transactions = getTransactions();
+    const autoSyncRepo = localStorage.getItem('auto_sync_repo') !== 'false'; // Default to true
+
+    if (transactions.length === 0 && autoSyncRepo) {
+        console.log("Empty data detected. Attempting auto-sync from repository...");
+        await fetchRepoData(true);
     }
 }
 
@@ -1557,6 +1580,7 @@ function updateSecurityUI() {
     const storedHash = localStorage.getItem('pin_hash');
     const setupBtn = document.getElementById('setup-pin-btn');
     const removeBtn = document.getElementById('remove-pin-btn');
+    const autoSyncToggle = document.getElementById('auto-sync-toggle');
 
     if (storedHash) {
         setupBtn.textContent = "Change PIN";
@@ -1565,4 +1589,12 @@ function updateSecurityUI() {
         setupBtn.textContent = "Setup PIN";
         removeBtn.style.display = 'none';
     }
+
+    if (autoSyncToggle) {
+        autoSyncToggle.checked = localStorage.getItem('auto_sync_repo') !== 'false';
+    }
+}
+
+function toggleAutoSync(checkbox) {
+    localStorage.setItem('auto_sync_repo', checkbox.checked);
 }

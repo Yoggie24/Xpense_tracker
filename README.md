@@ -16,6 +16,8 @@ A beautiful, simple money tracker that works on **both PC and mobile phone**!
 - ✅ New categories: Social and Jajan
 - ✅ Delete individual transactions
 - ✅ Clear all data option
+- ✅ **Secure Numeric PIN Login** (NEW!)
+- ✅ **Direct Cloud Sync** via GitHub Repository (NEW!)
 
 ## 🚀 How to Use (Super Easy!)
 
@@ -45,6 +47,8 @@ A beautiful, simple money tracker that works on **both PC and mobile phone**!
 
 - **Settings Tab**: Click the "Settings" tab to manage configurations.
 - **Import Data**: Upload your `Keuangan.xlsx` file to sync data from Excel.
+- **Load from Repository**: Sync your latest local data to the online site with one click!
+- **Security**: Set a numeric PIN to protect your financial information.
 - **Live Rates**: Check current USD and Gold prices in the Settings tab.
 - **Export**: Click "Export Excel" to save your transactions.
 
@@ -95,6 +99,19 @@ To move your data from Local (PC) to Online (GitHub Pages):
    - Under **Import Data**, click **📄 Choose File...**.
    - Select the `Keuangan-....xlsx` file you just downloaded.
    - Done! Your transactions and settings are now synced.
+
+## 🔐 Security (PIN Protection)
+
+Your financial data is private. To protect it:
+
+1. Open the app (Local or Online).
+2. Go to the **Settings** tab.
+3. Look for the **Security** section.
+4. Click **Setup PIN**, enter a numeric code (e.g., `1234`), and click **Save**.
+5. **Next time you open the app**, you will be asked for your PIN before seeing any data!
+
+> [!NOTE]
+> Your PIN is saved securely as a "hash" (a digital fingerprint). It is **not** stored as a readable number on GitHub, ensuring your real password remains secret even in a public repository.
 
 ## 📂 Files Explained (Simple!)
 

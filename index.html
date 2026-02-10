@@ -295,6 +295,25 @@
                         </div>
                         <button id="remove-pin-btn" class="upload-btn" onclick="removePin()"
                             style="margin-top: 10px; color: #ef4444; display: none;">Remove PIN</button>
+
+                        <div
+                            style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
+                            <div style="display: flex; align-items: center; justify-content: space-between;">
+                                <div>
+                                    <h4 style="margin: 0; color: var(--bca-blue); font-size: 0.95rem;">Auto-Sync Cloud
+                                    </h4>
+                                    <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.8rem;">Sync data
+                                        automatically on new devices</p>
+                                </div>
+                                <label class="switch"
+                                    style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                                    <input type="checkbox" id="auto-sync-toggle" onchange="toggleAutoSync(this)" checked
+                                        style="opacity: 0; width: 0; height: 0; position: absolute;">
+                                    <span
+                                        style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px;"></span>
+                                </label>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
