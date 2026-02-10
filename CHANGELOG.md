@@ -6,6 +6,9 @@
 - **Integrated Settings**: Settings are now a full tab in the dashboard ("Dashboard", "Transactions", "Settings"), providing a consistent experience.
 - **Improved Navigation**: Seamless switching between tabs without page reloading.
 
+### UI Cleanup
+- **Simplified Interface**: Removed duplicate Settings button from the "Add Transaction" card.
+
 ### Previous Updates
 - **Settings Panel**: Reorganized into "Import Data" and "Live Rates".
 - **Gold Sync**: Fixed API connection (CORS proxy).
