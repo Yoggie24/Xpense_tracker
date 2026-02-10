@@ -21,6 +21,7 @@ headers_output.txt
 
 # Personal Data
 *.xlsx
+!Keuangan.xlsx
 *.csv
 !money-tracker-config.csv
 

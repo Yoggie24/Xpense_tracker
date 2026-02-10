@@ -1426,3 +1426,43 @@ function init() {
 
 // Start the app when page loads
 document.addEventListener('DOMContentLoaded', init);
+
+// Fetch Keuangan.xlsx from repository (GitHub Pages)
+async function fetchRepoData() {
+    if (!confirm('This will load Keuangan.xlsx from the repository and overwrite your current data. Continue?')) return;
+
+    // Find the button that triggered this (fallback if event.target is missing)
+    let btn = event.target;
+    // Walk up if click was on icon inside button
+    if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
+
+    let originalText = '📥 Load from Repository (Keuangan.xlsx)';
+    if (btn) {
+        originalText = btn.innerHTML; // preserve icon
+        btn.innerHTML = '⏳ Loading...';
+        btn.disabled = true;
+    }
+
+    try {
+        // Fetch with cache busting to avoid stale data
+        const resp = await fetch(`Keuangan.xlsx?t=${Date.now()}`);
+        if (resp.ok) {
+            const blob = await resp.blob();
+            // Use existing importConfig logic
+            // Add filename for success message
+            // Create a fake file object
+            const file = new File([blob], 'Keuangan.xlsx (Repo)', { type: resp.headers.get('content-type') });
+            importConfig(file);
+        } else {
+            alert('Could not find Keuangan.xlsx in the repository. Please ensure it is pushed.');
+        }
+    } catch (e) {
+        console.error('Fetch error:', e);
+        alert('Error loading data from repository: ' + e.message);
+    } finally {
+        if (btn) {
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    }
+}

@@ -248,9 +248,15 @@
                         </div>
                     </div>
                     <label for="importConfig" class="upload-btn">
-                        📄 Choose File...
+                        📄 Upload File...
                         <input type="file" id="importConfig" accept=".xlsx, .xls, .csv" hidden>
                     </label>
+                    <div style="margin: 10px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem;">- OR -
+                    </div>
+                    <button class="upload-btn" onclick="fetchRepoData()"
+                        style="text-align: center; justify-content: center; background: var(--bca-blue); color: white; border: none; width: 100%; cursor: pointer;">
+                        📥 Load from Repository (Keuangan.xlsx)
+                    </button>
                 </div>
 
                 <hr class="settings-divider">
