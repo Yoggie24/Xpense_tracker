@@ -11,6 +11,8 @@ const DEFAULT_CONFIG = {
         { "name": "Rokok", "icon": "", "starting": 0, "type": "Outcome" },
         { "name": "Pindah uang", "icon": "", "starting": 0, "type": "Outcome" },
         { "name": "Kesehatan", "icon": "", "starting": 0, "type": "Outcome" },
+        { "name": "Social", "icon": "", "starting": 0, "type": "Outcome" },
+        { "name": "Jajan", "icon": "", "starting": 0, "type": "Outcome" },
         { "name": "Gaji", "icon": "", "starting": 0, "type": "Income" },
         { "name": "Bonus", "icon": "", "starting": 0, "type": "Income" },
         { "name": "Sisa", "icon": "", "starting": 0, "type": "Income" },
@@ -60,14 +62,24 @@ function saveTransactions(transactions) {
 }
 
 // Format number to Indonesian Rupiah
-// Format number to currency
 function formatMoney(amount, currency = 'IDR') {
     if (currency === 'USD') {
-        // US formatting: 1,000.00
         return '$ ' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
-    // IDR formatting: 1.000.000 (Indonesian locale)
     return 'Rp ' + amount.toLocaleString('id-ID');
+}
+
+// Thousand separator helpers for input fields
+function addThousandSeparator(value) {
+    // Strip non-digits, then format with dots
+    const num = String(value).replace(/[^0-9]/g, '');
+    if (!num) return '';
+    return parseInt(num, 10).toLocaleString('id-ID');
+}
+
+function parseFormattedNumber(value) {
+    // Remove dots (id-ID thousand separator) and parse
+    return parseFloat(String(value).replace(/\./g, '').replace(/,/g, '.')) || 0;
 }
 
 // Get/Load configuration
@@ -131,6 +143,14 @@ function getConfig() {
         config.paymentMethods.push({ "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true, "qty": 0, "price": 0 });
         changed = true;
     }
+
+    // Ensure new Outcome categories exist
+    ['Social', 'Jajan'].forEach(newCat => {
+        if (!config.categories.find(c => c.name === newCat && c.type === 'Outcome')) {
+            config.categories.push({ "name": newCat, "icon": "", "starting": 0, "type": "Outcome" });
+            changed = true;
+        }
+    });
 
     if (changed) {
         saveConfig(config);
@@ -594,23 +614,219 @@ function switchTab(tabId) {
     if (tabId === 'dashboard') {
         renderDailyChart();
         renderPieCharts();
+    } else if (tabId === 'settings') {
+        updateRatesDisplay();
     }
 }
 
 // Handle Kurs Update Prompt
 function handleKursPrompt() {
     const currentKurs = getKurs();
-    const input = prompt("Enter current USD to IDR Kurs:", currentKurs);
+    const input = prompt("Enter current USD to IDR Kurs:", addThousandSeparator(currentKurs));
     if (input === null || input === "") return;
 
-    const newKurs = parseFloat(input);
-    if (!isNaN(newKurs) && newKurs > 0) {
+    const newKurs = parseFormattedNumber(input);
+    if (newKurs > 0) {
         saveKurs(newKurs);
         alert(`Kurs updated to ${formatMoney(newKurs)}`);
     } else {
         alert("Please enter a valid number.");
     }
 }
+// Fetch latest USD/IDR exchange rate
+async function fetchKurs() {
+    const syncStatus = document.getElementById('syncStatus');
+    try {
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await resp.json();
+
+        if (data && data.rates && data.rates.IDR) {
+            const newKurs = data.rates.IDR;
+            saveKurs(newKurs);
+            updateBalance();
+            updateRatesDisplay();
+            if (syncStatus) {
+                syncStatus.textContent = `✅ USD Kurs updated: ${formatMoney(newKurs)} (${new Date().toLocaleTimeString()})`;
+                syncStatus.style.color = '#10b981';
+            }
+            alert(`USD Kurs updated!\nNew rate: ${formatMoney(newKurs)}`);
+            return true;
+        }
+    } catch (e) {
+        console.error("Kurs Sync Error:", e);
+    }
+    if (syncStatus) {
+        syncStatus.textContent = "❌ Failed to update USD Kurs.";
+        syncStatus.style.color = '#ef4444';
+    }
+    alert("Failed to fetch USD Kurs. Check your connection.");
+    return false;
+}
+
+
+// Fetch latest Gold price (XAU/USD → IDR/gram)
+async function fetchGoldPrice() {
+    const syncStatus = document.getElementById('syncStatus');
+    const GOLD_URL = 'https://data-asg.goldprice.org/dbXRates/USD';
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GOLD_URL);
+
+    let goldData = null;
+
+    // Use CORS proxy as primary (direct goldprice.org is CORS-blocked in browsers)
+    try {
+        const resp = await fetch(PROXY_URL);
+        if (resp.ok) {
+            goldData = await resp.json();
+        }
+    } catch (e) {
+        console.warn("Proxy gold fetch failed, trying direct...", e);
+    }
+
+    // Fallback: try direct (in case proxy is down)
+    if (!goldData) {
+        try {
+            const resp = await fetch(GOLD_URL);
+            if (resp.ok) {
+                goldData = await resp.json();
+            }
+        } catch (e2) {
+            console.error("Direct gold fetch also failed:", e2);
+        }
+    }
+
+    if (goldData && goldData.items && goldData.items.length > 0) {
+        const xauUsd = goldData.items[0].xauPrice;
+        const kurs = getKurs();
+        const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
+
+        const config = getConfig();
+        const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
+        if (goldAsset) {
+            goldAsset.price = goldIdrPerGram;
+            saveConfig(config);
+            updateBalance();
+            updateRatesDisplay();
+            if (syncStatus) {
+                syncStatus.textContent = `✅ Gold: ${formatMoney(goldIdrPerGram)}/gram (XAU: $${xauUsd.toLocaleString()}) — ${new Date().toLocaleTimeString()}`;
+                syncStatus.style.color = '#10b981';
+            }
+            alert(`Gold price updated!\nXAU/USD: $${xauUsd.toLocaleString()}\nIDR/gram: ${formatMoney(goldIdrPerGram)}`);
+            return true;
+        } else {
+            alert("Gold asset not found in your configuration.");
+        }
+    } else {
+        if (syncStatus) {
+            syncStatus.textContent = "❌ Failed to update Gold price.";
+            syncStatus.style.color = '#ef4444';
+        }
+        alert("Failed to fetch Gold price. Check your connection.");
+    }
+    return false;
+}
+
+// Sync all rates at once
+async function syncAllRates() {
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) {
+        syncStatus.textContent = "⏳ Syncing all rates...";
+        syncStatus.style.color = 'var(--text-muted)';
+    }
+
+    const kursOk = await fetchKursQuiet();
+    const goldOk = await fetchGoldQuiet();
+
+    const parts = [];
+    if (kursOk) parts.push(`Kurs: ${formatMoney(getKurs())}`);
+    if (goldOk) {
+        const config = getConfig();
+        const g = config.paymentMethods.find(m => m.name === 'Gold');
+        if (g) parts.push(`Gold: ${formatMoney(g.price)}/gram`);
+    }
+
+    updateBalance();
+    updateRatesDisplay();
+
+    if (kursOk || goldOk) {
+        if (syncStatus) {
+            syncStatus.textContent = `✅ Synced: ${new Date().toLocaleTimeString()} — ${parts.join(' | ')}`;
+            syncStatus.style.color = '#10b981';
+        }
+        alert(`Rates updated!\n${parts.join('\n')}`);
+    } else {
+        if (syncStatus) {
+            syncStatus.textContent = "❌ Sync failed. Check your connection.";
+            syncStatus.style.color = '#ef4444';
+        }
+        alert("Failed to fetch rates. Check your internet connection.");
+    }
+}
+
+// Quiet versions (no individual alerts, for use in syncAll)
+async function fetchKursQuiet() {
+    try {
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await resp.json();
+        if (data && data.rates && data.rates.IDR) {
+            saveKurs(data.rates.IDR);
+            return true;
+        }
+    } catch (e) { console.error("Kurs Sync Error:", e); }
+    return false;
+}
+
+async function fetchGoldQuiet() {
+    const GOLD_URL = 'https://data-asg.goldprice.org/dbXRates/USD';
+    const PROXY_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GOLD_URL);
+    let goldData = null;
+
+    try {
+        const resp = await fetch(PROXY_URL);
+        if (resp.ok) goldData = await resp.json();
+    } catch (e) {
+        try {
+            const resp = await fetch(GOLD_URL);
+            if (resp.ok) goldData = await resp.json();
+        } catch (e2) { console.error("Gold fetch failed:", e2); }
+    }
+
+    if (goldData && goldData.items && goldData.items.length > 0) {
+        const xauUsd = goldData.items[0].xauPrice;
+        const kurs = getKurs();
+        const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
+        const config = getConfig();
+        const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
+        if (goldAsset) {
+            goldAsset.price = goldIdrPerGram;
+            saveConfig(config);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Display current saved rates in settings panel
+function updateRatesDisplay() {
+    const display = document.getElementById('currentRatesDisplay');
+    if (!display) return;
+
+    const kurs = getKurs();
+    const config = getConfig();
+    const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
+    const goldPrice = goldAsset ? goldAsset.price || 0 : 0;
+
+    display.innerHTML = `
+        <div class="rate-item">
+            <span class="rate-label">💵 USD Kurs</span>
+            <span class="rate-value">${formatMoney(kurs)}</span>
+        </div>
+        <div class="rate-item">
+            <span class="rate-label">🥇 Gold Price/gram</span>
+            <span class="rate-value">${formatMoney(goldPrice)}</span>
+        </div>
+    `;
+}
+
 
 // Handle Investment Qty/Price adjustment
 function handleInvestmentAdjust(methodName, field) {
@@ -620,12 +836,12 @@ function handleInvestmentAdjust(methodName, field) {
 
     const currentValue = field === 'qty' ? methodConfig.qty || 0 : methodConfig.price || 0;
     const label = field === 'qty' ? 'Quantity' : 'Price';
-    const input = prompt(`Enter new ${label} for ${methodName}:`, currentValue);
+    const input = prompt(`Enter new ${label} for ${methodName}:`, addThousandSeparator(currentValue));
 
     if (input === null || input === "") return;
 
-    const newValue = parseFloat(input);
-    if (!isNaN(newValue)) {
+    const newValue = parseFormattedNumber(input);
+    if (newValue >= 0) {
         if (field === 'qty') {
             methodConfig.qty = newValue;
         } else {
@@ -633,7 +849,7 @@ function handleInvestmentAdjust(methodName, field) {
         }
         saveConfig(config);
         updateBalance();
-        alert(`${methodName} ${label} updated to ${field === 'qty' ? newValue : formatMoney(newValue)}`);
+        alert(`${methodName} ${label} updated to ${field === 'qty' ? newValue.toLocaleString('id-ID') : formatMoney(newValue)}`);
     } else {
         alert("Please enter a valid number.");
     }
@@ -641,11 +857,11 @@ function handleInvestmentAdjust(methodName, field) {
 
 // Handle manual adjustment of asset total
 function handleManualAdjustment(methodName, currentValue) {
-    const input = prompt(`Enter new total for ${methodName}:`, currentValue);
+    const input = prompt(`Enter new total for ${methodName}:`, addThousandSeparator(currentValue));
     if (input === null || input === "") return;
 
-    const newTotal = parseFloat(input);
-    if (isNaN(newTotal)) {
+    const newTotal = parseFormattedNumber(input);
+    if (newTotal === 0 && input.replace(/[^0-9]/g, '') !== '0') {
         alert("Please enter a valid number.");
         return;
     }
@@ -917,10 +1133,10 @@ function displayTransactions() {
             <div class="transaction-info">
                 <div class="transaction-date">${new Date(transaction.date).toLocaleDateString('id-ID')}</div>
                 <div class="transaction-description">${transaction.description}</div>
-                <div class="transaction-category">${transaction.category}</div>
+                <div class="transaction-category" onclick="editTransactionCategory(${transaction.id})">🏷️ ${transaction.category}</div>
                 <div class="transaction-payment">${transaction.paymentMethod || 'N/A'}</div>
             </div>
-            <div class="transaction-amount ${transaction.type}">
+            <div class="transaction-amount ${transaction.type}" onclick="editTransactionAmount(${transaction.id})">
                 ${transaction.type === 'expense' ? '-' : '+'} ${formatMoney(transaction.amount, isUSD ? 'USD' : 'IDR')}
             </div>
             <button class="delete-btn" onclick="deleteTransaction(${transaction.id})">🗑️</button>
@@ -961,6 +1177,51 @@ function deleteTransaction(id) {
         displayTransactions();
     }
 }
+
+// Edit transaction category
+function editTransactionCategory(id) {
+    const transactions = getTransactions();
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+
+    const config = getConfig();
+    const targetType = transaction.type === 'expense' ? 'Outcome' : 'Income';
+    const availableCategories = config.categories
+        .filter(cat => !cat.type || cat.type === targetType)
+        .map(cat => cat.name);
+
+    const input = prompt(`Enter new category for "${transaction.description}"\nAvailable: ${availableCategories.join(', ')}`, transaction.category);
+
+    if (input && availableCategories.includes(input)) {
+        transaction.category = input;
+        saveTransactions(transactions);
+        updateBalance();
+        displayTransactions();
+    } else if (input) {
+        alert("Invalid category. Please choose from the list.");
+    }
+}
+
+// Edit transaction amount
+function editTransactionAmount(id) {
+    const transactions = getTransactions();
+    const transaction = transactions.find(t => t.id === id);
+    if (!transaction) return;
+
+    const input = prompt(`Enter new amount for "${transaction.description}":`, addThousandSeparator(transaction.amount));
+    if (input === null || input === "") return;
+
+    const newAmount = parseFormattedNumber(input);
+    if (newAmount >= 0) {
+        transaction.amount = newAmount;
+        saveTransactions(transactions);
+        updateBalance();
+        displayTransactions();
+    } else {
+        alert("Please enter a valid positive number.");
+    }
+}
+
 
 // Clear all transactions
 function clearAllTransactions() {
@@ -1040,12 +1301,18 @@ function exportToExcel() {
 
 // Initialize the app
 function init() {
-    // Populate select elements
-    populateSelects();
+    // Populate select elements if needed
+    if (document.getElementById('category')) {
+        populateSelects();
+    }
 
-    // Update balance and display transactions
-    updateBalance();
-    displayTransactions();
+    // Update balance and display transactions if on dashboard
+    if (document.getElementById('totalBalance')) {
+        updateBalance();
+    }
+    if (document.getElementById('transactionsList')) {
+        displayTransactions();
+    }
 
     // Handle type button clicks
     const typeButtons = document.querySelectorAll('.type-btn');
@@ -1067,62 +1334,94 @@ function init() {
         dateInput.valueAsDate = new Date();
     }
 
-    form.addEventListener('submit', function (e) {
-        e.preventDefault();
+    // Live thousand separator on amount input
+    const amountInput = document.getElementById('amount');
+    if (amountInput) {
+        amountInput.addEventListener('input', function () {
+            const cursorPos = this.selectionStart;
+            const oldLen = this.value.length;
+            this.value = addThousandSeparator(this.value);
+            const newLen = this.value.length;
+            // Adjust cursor position after formatting
+            this.setSelectionRange(cursorPos + (newLen - oldLen), cursorPos + (newLen - oldLen));
+        });
+    }
+    // Handle new transaction
+    if (form) {
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            const dateInput = document.getElementById('date');
+            const date = dateInput.value;
+            const description = document.getElementById('description').value;
+            const amountInput = document.getElementById('amount');
+            const amount = parseFormattedNumber(amountInput.value);
+            const category = document.getElementById('category').value;
+            const type = document.getElementById('type').value;
+            const paymentMethod = document.getElementById('paymentMethod').value;
 
-        const date = document.getElementById('date').value;
-        const description = document.getElementById('description').value;
-        const amount = document.getElementById('amount').value;
-        const category = document.getElementById('category').value;
-        const type = document.getElementById('type').value;
-        const paymentMethod = document.getElementById('paymentMethod').value;
+            if (description && amount > 0 && category && paymentMethod) {
+                addTransaction(date, description, amount, category, type, paymentMethod);
+                form.reset();
 
-        if (description && amount && category && paymentMethod) {
-            addTransaction(date, description, amount, category, type, paymentMethod);
-            form.reset();
+                // Re-set default date
+                if (dateInput) dateInput.valueAsDate = new Date();
 
-            // Re-set default date
-            if (dateInput) dateInput.valueAsDate = new Date();
+                // Reset type to expense
+                typeButtons.forEach(btn => btn.classList.remove('active'));
+                typeButtons[0].classList.add('active');
+                document.getElementById('type').value = 'expense';
 
-            // Reset type to expense
-            typeButtons.forEach(btn => btn.classList.remove('active'));
-            typeButtons[0].classList.add('active');
-            document.getElementById('type').value = 'expense';
+                // Show success animation
+                const submitBtn = document.querySelector('.submit-btn');
+                if (submitBtn) {
+                    submitBtn.textContent = '✓ Added!';
+                    let originalBg = submitBtn.style.background; // Declare originalBg
+                    submitBtn.style.background = '#2ed573';
 
-            // Show success animation
-            const submitBtn = document.querySelector('.submit-btn');
-            submitBtn.textContent = '✓ Added!';
-            submitBtn.style.background = '#2ed573';
-
-            setTimeout(() => {
-                submitBtn.textContent = 'Add Transaction';
-                submitBtn.style.background = '';
-            }, 1500);
-        }
-    });
+                    setTimeout(() => {
+                        submitBtn.textContent = 'Add Transaction';
+                        submitBtn.style.background = originalBg;
+                    }, 1500);
+                }
+            }
+        });
+    }
 
     // Handle clear all button
-    document.getElementById('clearAll').addEventListener('click', clearAllTransactions);
+    const clearBtn = document.getElementById('clearAll');
+    if (clearBtn) clearBtn.addEventListener('click', clearAllTransactions);
 
     // Handle export button
-    document.getElementById('exportExcel').addEventListener('click', exportToExcel);
+    const exportBtn = document.getElementById('exportExcel');
+    if (exportBtn) exportBtn.addEventListener('click', exportToExcel);
 
-    // Handle settings toggle
-    const settingsBtn = document.getElementById('settingsBtn');
-    const settingsPanel = document.getElementById('settingsPanel');
-    settingsBtn.addEventListener('click', () => {
-        settingsPanel.classList.toggle('hidden');
-    });
 
-    // Handle config export
-    document.getElementById('exportConfig').addEventListener('click', exportConfig);
+    // Settings toggle removed (now a separate page)
+
+    // Auto-update rates display if on settings page
+    if (document.getElementById('currentRatesDisplay')) {
+        updateRatesDisplay();
+    }
 
     // Handle config import
-    document.getElementById('importConfig').addEventListener('change', function (e) {
-        if (e.target.files.length > 0) {
-            importConfig(e.target.files[0]);
-        }
-    });
+    // Handle config import
+    const importInput = document.getElementById('importConfig');
+    if (importInput) {
+        importInput.addEventListener('change', function (e) {
+            if (e.target.files.length > 0) {
+                importConfig(e.target.files[0]);
+            }
+        });
+    }
+
+    // Handle Rate Sync Buttons
+    const syncKursBtn = document.getElementById('syncKurs');
+    const syncGoldBtn = document.getElementById('syncGold');
+    const syncAllBtn = document.getElementById('syncAll');
+
+    if (syncKursBtn) syncKursBtn.addEventListener('click', fetchKurs);
+    if (syncGoldBtn) syncGoldBtn.addEventListener('click', fetchGoldPrice);
+    if (syncAllBtn) syncAllBtn.addEventListener('click', syncAllRates);
 }
 
 // Start the app when page loads

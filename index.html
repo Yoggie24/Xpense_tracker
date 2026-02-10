@@ -18,6 +18,7 @@
         <nav class="tab-nav">
             <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')">Dashboard</button>
             <button class="tab-btn" id="tab-transactions" onclick="switchTab('transactions')">Transactions</button>
+            <button class="tab-btn" id="tab-settings" onclick="switchTab('settings')">Settings</button>
         </nav>
 
         <!-- Header -->
@@ -160,21 +161,9 @@
             <div class="form-card">
                 <div class="card-header">
                     <h2>Add Transaction</h2>
-                    <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
                 </div>
 
-                <!-- Settings Panel (Hidden by default) -->
-                <div id="settingsPanel" class="settings-panel hidden">
-                    <h3>Configuration Settings</h3>
-                    <p class="settings-desc">Sync with your Keuangan.xlsx file.</p>
-                    <div class="settings-actions">
-                        <button class="export-btn" id="exportConfig" style="display: none;">💾 Download Config</button>
-                        <label for="importConfig" class="upload-btn">
-                            📂 Sync with Keuangan.xlsx
-                            <input type="file" id="importConfig" accept=".xlsx, .xls, .csv" hidden>
-                        </label>
-                    </div>
-                </div>
+                <!-- Settings moved to settings.html -->
 
                 <form id="transactionForm">
                     <div class="form-group">
@@ -189,7 +178,7 @@
 
                     <div class="form-group">
                         <label for="amount">Amount</label>
-                        <input type="number" id="amount" placeholder="0" required min="0">
+                        <input type="text" id="amount" inputmode="numeric" placeholder="0" required autocomplete="off">
                     </div>
 
                     <div class="form-group">
@@ -239,6 +228,51 @@
                         <p>No transactions yet</p>
                         <p class="empty-subtitle">Add your first transaction above!</p>
                     </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- SETTINGS PAGE -->
+        <div id="settings-page" class="page">
+            <div class="form-card">
+                <div class="card-header">
+                    <h2>Settings</h2>
+                </div>
+                <!-- Section 1: Excel Import -->
+                <div class="settings-section">
+                    <div class="section-header">
+                        <span class="section-icon">📂</span>
+                        <div>
+                            <h3>Import Data</h3>
+                            <p class="settings-desc">Sync from your Keuangan.xlsx file</p>
+                        </div>
+                    </div>
+                    <label for="importConfig" class="upload-btn">
+                        📄 Choose File...
+                        <input type="file" id="importConfig" accept=".xlsx, .xls, .csv" hidden>
+                    </label>
+                </div>
+
+                <hr class="settings-divider">
+
+                <!-- Section 2: Live Rates -->
+                <div class="settings-section">
+                    <div class="section-header">
+                        <span class="section-icon">💹</span>
+                        <div>
+                            <h3>Live Rates</h3>
+                            <p class="settings-desc">Current exchange rates & asset prices</p>
+                        </div>
+                    </div>
+                    <div class="current-rates" id="currentRatesDisplay">
+                        <!-- Populated by JS -->
+                    </div>
+                    <div class="sync-btn-row">
+                        <button class="sync-btn" id="syncKurs">💵 USD Kurs</button>
+                        <button class="sync-btn" id="syncGold">🥇 Gold</button>
+                        <button class="sync-btn sync-btn-all" id="syncAll">🔄 All</button>
+                    </div>
+                    <div id="syncStatus" class="sync-status">Last synced: Never</div>
                 </div>
             </div>
         </div>

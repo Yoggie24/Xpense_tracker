@@ -117,6 +117,19 @@ body {
     font-weight: 400;
 }
 
+.back-link {
+    text-decoration: none;
+    font-size: 1.5rem;
+    color: var(--bca-blue);
+    transition: transform 0.2s;
+    display: inline-block;
+    margin-right: 15px;
+}
+
+.back-link:hover {
+    transform: translateX(-4px);
+}
+
 /* Card Styles */
 .balance-card,
 .form-card,
@@ -166,7 +179,7 @@ body {
 
 .balance-details {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
     gap: 16px;
 }
 
@@ -285,11 +298,182 @@ body {
     box-shadow: 0 12px 24px rgba(0, 96, 175, 0.2);
 }
 
+/* Upload Button */
+.upload-btn {
+    display: flex;
+    /* Changed from inline-block */
+    width: 100%;
+    padding: 12px;
+    background: white;
+    color: var(--bca-blue);
+    border: 1px dashed #cbd5e1;
+    border-radius: 12px;
+    text-align: center;
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+}
+
+.upload-btn:hover {
+    background: #f8fafc;
+    border-color: var(--bca-blue);
+    color: var(--bca-dark-blue);
+}
+
+/* Sync Buttons */
+.sync-btn {
+    padding: 12px 18px;
+    background: #f0f4f8;
+    color: var(--bca-blue);
+    border: 1px solid #d1d9e6;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.sync-btn:hover {
+    background: var(--bca-blue);
+    color: white;
+    border-color: var(--bca-blue);
+}
+
+.sync-status {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 10px;
+    font-style: italic;
+}
+
+.settings-section {
+    margin-bottom: 16px;
+}
+
+.section-header {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-bottom: 12px;
+}
+
+.section-icon {
+    font-size: 1.2rem;
+    padding-top: 2px;
+}
+
+.settings-section h3 {
+    font-size: 0.95rem;
+    color: var(--bca-dark-blue);
+    margin-bottom: 2px;
+    font-weight: 700;
+}
+
+.settings-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.3;
+}
+
+.settings-divider {
+    border: none;
+    border-top: 1px dashed #e2e8f0;
+    margin: 16px 0;
+}
+
+.sync-btn-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 4px;
+}
+
+.sync-btn {
+    padding: 10px 14px;
+    /* More compact */
+    background: white;
+    color: var(--bca-blue);
+    border: 1px solid #d1d9e6;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* Center content */
+    gap: 6px;
+    flex: 1;
+    /* Distribute space evenly */
+    white-space: nowrap;
+}
+
+.sync-btn:hover {
+    background: #f0f9ff;
+    border-color: var(--bca-blue);
+    transform: translateY(-1px);
+}
+
+.sync-btn-all {
+    background: var(--bca-blue);
+    color: white;
+    border-color: var(--bca-blue);
+    flex: 1.2;
+    /* Make sync all slightly wider/prominent */
+}
+
+.sync-btn-all:hover {
+    background: var(--bca-dark-blue);
+    border-color: var(--bca-dark-blue);
+    color: white;
+}
+
+.current-rates {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+}
+
+.rate-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex: 1;
+    min-width: 180px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 10px 14px;
+}
+
+.rate-label {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.rate-value {
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--bca-dark-blue);
+}
+
 /* Transactions List */
 .transaction-item {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
     padding: 20px;
     background: white;
     border-radius: 18px;
@@ -326,6 +510,21 @@ body {
     color: var(--success);
 }
 
+/* Editable Transaction Styles */
+.transaction-category,
+.transaction-amount {
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border-bottom: 1px dashed transparent;
+}
+
+.transaction-category:hover,
+.transaction-amount:hover {
+    color: var(--bca-blue);
+    border-bottom-color: var(--bca-blue);
+    transform: scale(1.05);
+}
+
 /* Table Styles (BCA blue headers) */
 .table-container {
     width: 100%;
@@ -339,7 +538,6 @@ body {
 table {
     width: 100%;
     border-collapse: collapse;
-    min-width: 600px;
 }
 
 th {
@@ -377,7 +575,7 @@ tr:last-child td {
     border: 1px solid #d0e7ff;
     color: var(--bca-blue);
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
     gap: 20px;
 }
 
@@ -406,17 +604,59 @@ tr:last-child td {
 }
 
 /* Mobile */
-@media (max-width: 600px) {
-    body {
-        padding: 12px;
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding: 10px;
     }
 
     .balance-amount {
         font-size: 1.8rem;
     }
 
+    .tab-btn {
+        padding: 10px;
+        font-size: 0.85rem;
+    }
+}
+
+@media (max-width: 480px) {
+    body {
+        padding: 10px;
+    }
+
+    .header h1 {
+        font-size: 1.5rem;
+    }
+
+    .balance-card {
+        padding: 20px;
+    }
+
+    .balance-amount {
+        font-size: 1.6rem;
+    }
+
     .type-buttons {
         flex-direction: column;
+    }
+
+    .submit-btn {
+        padding: 15px;
+    }
+
+    .periodic-item .amount {
+        font-size: 1.1rem;
+    }
+
+    .tab-nav {
+        gap: 6px;
+        padding: 6px;
+    }
+
+    .tab-btn {
+        padding: 10px 4px;
+        gap: 4px;
     }
 }
 

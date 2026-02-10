@@ -11,7 +11,9 @@ A beautiful, simple money tracker that works on **both PC and mobile phone**!
 - ✅ No database setup required
 - ✅ Data saved automatically in your browser
 - ✅ Categories for organizing transactions
-- ✅ See total balance, income, and expenses
+- ✅ See total balance, income, and expenses (with charts)
+- ✅ Export to Excel/CSV support
+- ✅ New categories: Social and Jajan
 - ✅ Delete individual transactions
 - ✅ Clear all data option
 
@@ -139,8 +141,8 @@ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
 ## 🆕 Future Features (You Can Add!)
 
 Want to learn coding? Try adding:
-- [ ] Export to Excel
-- [ ] Charts/graphs
+- [x] Export to Excel
+- [x] Charts/graphs
 - [ ] Budget limits
 - [ ] Monthly reports
 - [ ] Multiple currencies
