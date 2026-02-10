@@ -13,6 +13,20 @@
 </head>
 
 <body>
+    <div id="login-screen" class="login-screen" style="display: none;">
+        <div class="login-card">
+            <div class="login-icon">🔒</div>
+            <h2>Secure Access</h2>
+            <p>Please enter your numeric PIN</p>
+            <div class="pin-input-group">
+                <input type="password" id="login-pin" maxlength="6" pattern="\d*" inputmode="numeric"
+                    placeholder="••••">
+                <button id="login-btn" onclick="handleLogin()">Login</button>
+            </div>
+            <p id="login-error" class="error-msg" style="display: none;">Invalid PIN. Please try again.</p>
+        </div>
+    </div>
+
     <div class="container">
         <!-- Tab Navigation -->
         <nav class="tab-nav">
@@ -259,29 +273,55 @@
                     </button>
                 </div>
 
-                <hr class="settings-divider">
+            </div>
 
-                <!-- Section 2: Live Rates -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <span class="section-icon">💹</span>
-                        <div>
-                            <h3>Live Rates</h3>
-                            <p class="settings-desc">Current exchange rates & asset prices</p>
-                        </div>
+            <hr class="settings-divider">
+
+            <!-- Section 2: Security -->
+            <div class="settings-section">
+                <div class="section-header">
+                    <span class="section-icon">🔒</span>
+                    <div>
+                        <h3>Security</h3>
+                        <p class="settings-desc">Protect your data with a numeric PIN</p>
                     </div>
-                    <div class="current-rates" id="currentRatesDisplay">
-                        <!-- Populated by JS -->
+                </div>
+                <div class="security-controls">
+                    <button id="setup-pin-btn" class="upload-btn" onclick="togglePinSetup()">Setup/Change PIN</button>
+                    <div id="pin-setup-form" style="display: none; margin-top: 15px;">
+                        <input type="password" id="new-pin" placeholder="Enter new PIN" maxlength="6"
+                            style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px;">
+                        <button class="upload-btn" onclick="saveNewPin()"
+                            style="background: var(--bca-blue); color: white; width: 100%;">Save PIN</button>
                     </div>
-                    <div class="sync-btn-row">
-                        <button class="sync-btn" id="syncKurs">💵 USD Kurs</button>
-                        <button class="sync-btn" id="syncGold">🥇 Gold</button>
-                        <button class="sync-btn sync-btn-all" id="syncAll">🔄 All</button>
-                    </div>
-                    <div id="syncStatus" class="sync-status">Last synced: Never</div>
+                    <button id="remove-pin-btn" class="upload-btn" onclick="removePin()"
+                        style="margin-top: 10px; color: #ef4444; display: none;">Remove PIN</button>
                 </div>
             </div>
+
+            <hr class="settings-divider">
+
+            <!-- Section 2: Live Rates -->
+            <div class="settings-section">
+                <div class="section-header">
+                    <span class="section-icon">💹</span>
+                    <div>
+                        <h3>Live Rates</h3>
+                        <p class="settings-desc">Current exchange rates & asset prices</p>
+                    </div>
+                </div>
+                <div class="current-rates" id="currentRatesDisplay">
+                    <!-- Populated by JS -->
+                </div>
+                <div class="sync-btn-row">
+                    <button class="sync-btn" id="syncKurs">💵 USD Kurs</button>
+                    <button class="sync-btn" id="syncGold">🥇 Gold</button>
+                    <button class="sync-btn sync-btn-all" id="syncAll">🔄 All</button>
+                </div>
+                <div id="syncStatus" class="sync-status">Last synced: Never</div>
+            </div>
         </div>
+    </div>
     </div>
 
     <script src="assets/js/script.js"></script>
