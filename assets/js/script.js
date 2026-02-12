@@ -201,15 +201,18 @@ function populateSelects() {
         if (!categorySelect || !paymentSelect || !typeInput) return;
 
         const type = typeInput.value; // 'expense' or 'income'
-        const targetType = type === 'expense' ? 'Outcome' : 'Income';
+        // Normalize type matching to be case-insensitive and robust
+        const targetType = type.toLowerCase() === 'expense' ? 'outcome' : 'income';
 
         // Clear existing options (except placeholder)
         categorySelect.innerHTML = '<option value="">Select Category</option>';
         paymentSelect.innerHTML = '<option value="">Select Payment Method</option>';
 
-        // Filter categories by type
-        // Use fallback: if cat.type is missing, it shows in both to prevent empty list
-        const filteredCategories = config.categories.filter(cat => !cat.type || cat.type === targetType);
+        // Filter categories by type (case-insensitive)
+        const filteredCategories = config.categories.filter(cat => {
+            if (!cat.type) return true; // Show if type is missing
+            return cat.type.toLowerCase() === targetType;
+        });
 
         filteredCategories.forEach(cat => {
             const option = document.createElement('option');
@@ -251,169 +254,163 @@ function exportConfig() {
 
 // Import config (Supports both CSV and Excel)
 // Modified to specifically handle Keuangan.xlsx structure
-function importConfig(file, isSilent = false) {
+// mode: 'all' (default), 'data' (transactions/balances only), 'format' (categories/methods only)
+function importConfig(file, isSilent = false, mode = 'all') {
     const reader = new FileReader();
     reader.onload = function (e) {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        const newConfig = { categories: [], paymentMethods: [] };
+        
+        // Standardize sheet name lookup (case-insensitive)
+        const sheetNames = workbook.SheetNames;
+        const findSheet = (name) => sheetNames.find(s => s.toLowerCase() === name.toLowerCase());
+        
+        const listSheetName = findSheet('List');
+        const rasioSheetName = findSheet('Rasio');
+        const trackerSheetName = findSheet('Money_tracker');
 
-        // 1. Check if it's the Keuangan.xlsx structure (has 'List' sheet)
-        if (workbook.SheetNames.includes('List')) {
-            const listSheet = workbook.Sheets['List'];
+        const currentConfig = getConfig();
+        const newFormat = { categories: [], paymentMethods: [] };
+        let transactionsToSave = null;
+
+        // 1. Process Format (Sheet: 'List')
+        if (listSheetName && (mode === 'all' || mode === 'format')) {
+            const listSheet = workbook.Sheets[listSheetName];
             const listData = XLSX.utils.sheet_to_json(listSheet);
 
-            // Payment Methods from 'Metode' column
             listData.forEach(row => {
-                if (row['Metode']) {
-                    newConfig.paymentMethods.push({
-                        name: row['Metode'],
-                        icon: '',
-                        starting: 0
-                    });
-                }
+                // Find keys case-insensitively
+                const getVal = (obj, keyName) => {
+                    const foundKey = Object.keys(obj).find(k => k.toLowerCase().trim() === keyName.toLowerCase());
+                    return foundKey ? obj[foundKey] : null;
+                };
 
-                // Categories from 'Outcome List' and 'Income List'
-                if (row['Outcome List']) {
-                    newConfig.categories.push({
-                        name: row['Outcome List'],
-                        icon: '',
-                        starting: 0,
-                        type: 'Outcome'
-                    });
+                const metodo = getVal(row, 'Metode');
+                const outcomeItem = getVal(row, 'Outcome List');
+                const incomeItem = getVal(row, 'Income List');
+
+                if (metodo) {
+                    newFormat.paymentMethods.push({ name: metodo, icon: '', starting: 0 });
                 }
-                if (row['Income List']) {
-                    newConfig.categories.push({
-                        name: row['Income List'],
-                        icon: '',
-                        starting: 0,
-                        type: 'Income'
-                    });
+                if (outcomeItem) {
+                    newFormat.categories.push({ name: outcomeItem, icon: '', starting: 0, type: 'Outcome' });
+                }
+                if (incomeItem) {
+                    newFormat.categories.push({ name: incomeItem, icon: '', starting: 0, type: 'Income' });
                 }
             });
+        }
 
-            // 2. Get Starting Balances from 'Rasio' sheet if it exists
-            if (workbook.SheetNames.includes('Rasio')) {
-                const rasioSheet = workbook.Sheets['Rasio'];
-                const rasioData = XLSX.utils.sheet_to_json(rasioSheet, { header: 1 });
+        // 2. Process Starting Balances (Sheet: 'Rasio')
+        if (rasioSheetName && (mode === 'all' || mode === 'data')) {
+            const rasioSheet = workbook.Sheets[rasioSheetName];
+            const rasioData = XLSX.utils.sheet_to_json(rasioSheet, { header: 1 });
 
-                // Find headers
-                let headers = [];
-                let headerRowIdx = -1;
-                for (let i = 0; i < Math.min(rasioData.length, 10); i++) {
-                    if (rasioData[i].includes('Item') && rasioData[i].includes('IDR')) {
-                        headers = rasioData[i];
-                        headerRowIdx = i;
-                        break;
-                    }
+            let headers = [];
+            let headerRowIdx = -1;
+            for (let i = 0; i < Math.min(rasioData.length, 10); i++) {
+                const row = rasioData[i] || [];
+                const rowStr = row.map(v => String(v).toLowerCase());
+                if (rowStr.includes('item') && (rowStr.includes('idr') || rowStr.includes('saldo'))) {
+                    headers = row;
+                    headerRowIdx = i;
+                    break;
                 }
+            }
 
-                if (headerRowIdx !== -1) {
-                    const itemIdx = headers.indexOf('Item');
-                    const idrIdx = headers.indexOf('IDR');
-                    const usdIdx = headers.indexOf('USD');
-                    const kursIdx = headers.indexOf('Kurs');
+            if (headerRowIdx !== -1) {
+                const findIdx = (names) => headers.findIndex(h => names.includes(String(h).toLowerCase().trim()));
+                const itemIdx = findIdx(['item']);
+                const idrIdx = findIdx(['idr', 'saldo', 'balance']);
+                const usdIdx = findIdx(['usd']);
 
-                    for (let i = headerRowIdx + 1; i < rasioData.length; i++) {
-                        const row = rasioData[i];
-                        const itemName = row[itemIdx];
-                        if (!itemName || itemName === 'Grand Total') continue;
+                const targetMethods = (mode === 'data') ? currentConfig.paymentMethods : newFormat.paymentMethods;
 
-                        const idrValue = parseFloat(row[idrIdx] || 0);
-                        const usdValue = usdIdx !== -1 ? parseFloat(row[usdIdx] || 0) : 0;
-                        const kursValue = kursIdx !== -1 ? parseFloat(row[kursIdx] || 0) : 0;
+                for (let i = headerRowIdx + 1; i < rasioData.length; i++) {
+                    const row = rasioData[i];
+                    if (!row) continue;
+                    const itemName = row[itemIdx];
+                    if (!itemName || itemName === 'Grand Total') continue;
 
-                        const method = newConfig.paymentMethods.find(m => m.name === itemName);
-                        if (method) {
-                            // Concept: If USD exists or name contains 'Vallas' or 'Jenius'
-                            if (usdValue > 0 || itemName.toLowerCase().includes('vallas') || itemName.toLowerCase().includes('jenius')) {
-                                method.isUSD = true;
-                                method.starting = usdValue;
-                            } else {
-                                method.starting = idrValue;
-                            }
+                    const idrValue = parseFloat(row[idrIdx] || 0);
+                    const usdValue = usdIdx !== -1 ? parseFloat(row[usdIdx] || 0) : 0;
 
-                            if (['gold', 'saham', 'investasi'].some(keyword => itemName.toLowerCase().includes(keyword))) {
-                                method.isInvestment = true;
-                                if (itemName.toLowerCase().includes('gold') || itemName.toLowerCase().includes('saham')) {
-                                    method.qty = 0;
-                                    method.price = 0;
-                                }
-                            }
+                    const method = targetMethods.find(m => m.name.trim().toLowerCase() === String(itemName).trim().toLowerCase());
+                    if (method) {
+                        if (usdValue > 0 || itemName.toLowerCase().includes('vallas') || itemName.toLowerCase().includes('jenius')) {
+                            method.isUSD = true;
+                            method.starting = usdValue;
+                        } else {
+                            method.starting = idrValue;
+                        }
+                        if (['gold', 'saham', 'investasi', 'stocks'].some(kw => itemName.toLowerCase().includes(kw))) {
+                            method.isInvestment = true;
+                            if (method.qty === undefined) { method.qty = 0; method.price = 0; }
                         }
                     }
                 }
             }
-
-            // 3. Get Transactions from 'Money_tracker' sheet if it exists
-            if (workbook.SheetNames.includes('Money_tracker')) {
-                const trackerSheet = workbook.Sheets['Money_tracker'];
-                const trackerData = XLSX.utils.sheet_to_json(trackerSheet);
-                const transactions = [];
-
-                trackerData.forEach((row, index) => {
-                    const jenis = row['Jenis'] || '';
-
-                    // Helper to detect if it's income
-                    const isIncome = (val) => {
-                        if (!val) return false;
-                        const s = String(val).toLowerCase().trim();
-                        // Exact matches or clear indicators
-                        const incomeTerms = ['income', 'pemasukan', 'tambah', 'deposit', 'debet', 'debit', 'gaji'];
-                        return incomeTerms.includes(s) || s === 'in' || s.startsWith('income') || s.startsWith('pemasukan');
-                    };
-
-                    const type = isIncome(jenis) ? 'income' : 'expense';
-
-                    if (row['Jumlah']) {
-                        transactions.push({
-                            id: Date.now() + index,
-                            description: row['Keterangan'] || 'Imported',
-                            amount: parseFloat(row['Jumlah'] || 0),
-                            category: row['Kategori'] || 'Other',
-                            type: type,
-                            paymentMethod: row['Metode Pembayaran'] || 'Cash',
-                            date: row['Date'] ? new Date(row['Date']).toISOString() : new Date().toISOString()
-                        });
-                    }
-                });
-
-                if (transactions.length > 0) {
-                    saveTransactions(transactions); // Overwrites existing for full sync
-                    displayTransactions();
-                }
-            }
         }
-        // 4. Fallback to standard CSV/Excel format
-        else {
-            const firstSheetName = workbook.SheetNames[0];
-            const worksheet = workbook.Sheets[firstSheetName];
-            const jsonData = XLSX.utils.sheet_to_json(worksheet);
 
-            jsonData.forEach(row => {
-                const type = row.Type || row.type;
-                const name = row.Item || row.Name || row.name;
-                const icon = row.Icon || row.icon || '📦';
-                const starting = parseFloat(row['Starting Balance'] || row.Starting || 0);
-                const categoryType = row.CategoryType || row.categoryType || (type === 'Category' ? 'Outcome' : '');
+        // 3. Process Transactions (Sheet: 'Money_tracker')
+        if (trackerSheetName && (mode === 'all' || mode === 'data')) {
+            const trackerSheet = workbook.Sheets[trackerSheetName];
+            const trackerData = XLSX.utils.sheet_to_json(trackerSheet);
+            const transactions = [];
 
-                if (type === 'Category') {
-                    newConfig.categories.push({ name, icon, starting, type: categoryType });
-                } else if (type === 'PaymentMethod') {
-                    newConfig.paymentMethods.push({ name, icon, starting });
+            trackerData.forEach((row, index) => {
+                const getVal = (obj, keyName) => {
+                    const foundKey = Object.keys(obj).find(k => k.toLowerCase().trim() === keyName.toLowerCase());
+                    return foundKey ? obj[foundKey] : null;
+                };
+
+                const jenis = String(getVal(row, 'Jenis') || '').toLowerCase().trim();
+                const type = (jenis === 'income' || jenis === 'pemasukan' || jenis === 'in') ? 'income' : 'expense';
+                const jumlah = parseFloat(getVal(row, 'Jumlah') || 0);
+
+                if (jumlah > 0) {
+                    transactions.push({
+                        id: Date.now() + index,
+                        description: getVal(row, 'Keterangan') || 'Imported',
+                        amount: jumlah,
+                        category: getVal(row, 'Kategori') || 'Other',
+                        type: type,
+                        paymentMethod: getVal(row, 'Metode Pembayaran') || 'Cash',
+                        date: getVal(row, 'Date') ? new Date(getVal(row, 'Date')).toISOString() : new Date().toISOString()
+                    });
                 }
             });
+            if (transactions.length > 0) transactionsToSave = transactions;
         }
 
-        if (newConfig.categories.length > 0 || newConfig.paymentMethods.length > 0) {
-            saveConfig(newConfig);
+        // Execute Save Logic
+        let success = false;
+        if (mode === 'format' && newFormat.categories.length > 0) {
+            currentConfig.categories = newFormat.categories;
+            currentConfig.paymentMethods = newFormat.paymentMethods;
+            saveConfig(currentConfig);
+            success = true;
+        } else if (mode === 'data') {
+            if (transactionsToSave) saveTransactions(transactionsToSave);
+            saveConfig(currentConfig); // Saves adjusted starting balances
+            success = true;
+        } else if (mode === 'all' && (newFormat.categories.length > 0 || transactionsToSave)) {
+            if (newFormat.categories.length > 0) {
+                newFormat.categories.forEach(c => currentConfig.categories.push(c)); // Simplified merge
+                // Better: overwrite if all
+                saveConfig(newFormat); 
+            }
+            if (transactionsToSave) saveTransactions(transactionsToSave);
+            success = true;
+        }
+
+        if (success) {
             populateSelects();
             updateBalance();
-            if (!isSilent) {
-                alert('Settings and Transactions synced successfully with ' + file.name + '!');
-            }
+            displayTransactions();
+            if (!isSilent) alert(`Successfully synced ${mode} from ${file.name}!`);
         } else if (!isSilent) {
-            alert('Could not find configuration in the uploaded file. Please use Keuangan.xlsx structure.');
+            alert('Could not find requested data in the file.');
         }
     };
     reader.readAsArrayBuffer(file);
@@ -1448,41 +1445,37 @@ function init() {
 document.addEventListener('DOMContentLoaded', init);
 
 // Fetch Keuangan.xlsx from repository (GitHub Pages)
-// Fetch Keuangan.xlsx from repository (GitHub Pages)
-async function fetchRepoData(isAuto = false) {
-    if (!isAuto && !confirm('This will load Keuangan.xlsx from the repository and overwrite your current data. Continue?')) return;
+async function fetchRepoData(isAuto = false, mode = 'all') {
+    if (!isAuto && !confirm(`This will sync ${mode} from the repository. Continue?`)) return;
 
-    // Find the button that triggered this (fallback if event.target is missing)
+    // Find the button that triggered this
     let btn = null;
     try {
-        btn = event.target;
-        if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
-    } catch (e) {
-        // event might not be defined in auto-sync context
-    }
+        if (typeof event !== 'undefined' && event.target) {
+            btn = event.target;
+            if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
+        }
+    } catch (e) {}
 
-    let originalText = '📥 Load from Repository (Keuangan.xlsx)';
+    let originalText = mode === 'data' ? '📥 Sync Data Only' : '📋 Sync Format Only';
     if (btn) {
-        originalText = btn.innerHTML; // preserve icon
-        btn.innerHTML = '⏳ Loading...';
+        originalText = btn.innerHTML;
+        btn.innerHTML = '⏳ Syncing...';
         btn.disabled = true;
     }
 
     try {
-        // Fetch with cache busting to avoid stale data
         const resp = await fetch(`Keuangan.xlsx?t=${Date.now()}`);
         if (resp.ok) {
             const blob = await resp.blob();
-            // Use existing importConfig logic
-            // Create a fake file object
-            const file = new File([blob], 'Keuangan.xlsx (Repo)', { type: resp.headers.get('content-type') });
-            importConfig(file, isAuto); // Pass silent flag
+            const file = new File([blob], 'Keuangan.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            importConfig(file, isAuto, mode);
         } else if (!isAuto) {
-            alert('Could not find Keuangan.xlsx in the repository. Please ensure it is pushed.');
+            alert('Could not find Keuangan.xlsx in the repository.');
         }
     } catch (e) {
         console.error('Fetch error:', e);
-        if (!isAuto) alert('Error loading data from repository: ' + e.message);
+        if (!isAuto) alert('Error syncing from repository: ' + e.message);
     } finally {
         if (btn) {
             btn.innerHTML = originalText;

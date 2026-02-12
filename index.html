@@ -267,10 +267,16 @@
                     </label>
                     <div style="margin: 10px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem;">- OR -
                     </div>
-                    <button class="upload-btn" onclick="fetchRepoData()"
-                        style="text-align: center; justify-content: center; background: var(--bca-blue); color: white; border: none; width: 100%; cursor: pointer;">
-                        📥 Load from Repository (Keuangan.xlsx)
-                    </button>
+                    <div class="sync-actions-group">
+                        <button class="upload-btn sync-data-btn" onclick="fetchRepoData(false, 'data')"
+                            style="text-align: center; justify-content: center; background: var(--success); color: white; border: none; width: 100%; cursor: pointer; margin-bottom: 8px;">
+                            📥 Sync Data Only
+                        </button>
+                        <button class="upload-btn sync-format-btn" onclick="fetchRepoData(false, 'format')"
+                            style="text-align: center; justify-content: center; background: var(--bca-blue); color: white; border: none; width: 100%; cursor: pointer;">
+                            📋 Sync Format Only
+                        </button>
+                    </div>
                 </div>
 
                 <hr class="settings-divider">
