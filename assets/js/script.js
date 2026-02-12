@@ -1320,11 +1320,8 @@ document.addEventListener('DOMContentLoaded', () => init());
 
 // Automatically sync from cloud if authorized
 async function autoSyncOnStartup() {
-    const transactions = getTransactions();
-    if (transactions.length === 0) {
-        console.log("Empty data detected. Attempting auto-fetch from GSheet...");
-        await fetchGSheetData('all');
-    }
+    console.log("Startup check: Attempting cloud sync...");
+    await fetchGSheetData('all');
 }
 
 // Hash the PIN using SHA-256
@@ -1455,7 +1452,7 @@ function loadGDriveCreds() {
     if (sheetId) document.getElementById('gdrive-sheet-id').value = sheetId;
 }
 
-function handleAuthClick() {
+function handleAuthClick(isSilent = false) {
     tokenClient.callback = async (resp) => {
         if (resp.error !== undefined) {
             updateSyncStatus('error', 'Auth Failed');
@@ -1463,11 +1460,12 @@ function handleAuthClick() {
         }
         localStorage.setItem('gsheet_token', JSON.stringify(resp));
         updateAuthUI(true);
-        processGSheetQueue();
+        // Automatically fetch data after successful auth
+        fetchGSheetData('all');
     };
 
     if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({ prompt: 'consent' });
+        tokenClient.requestAccessToken({ prompt: isSilent ? '' : 'consent' });
     } else {
         tokenClient.requestAccessToken({ prompt: '' });
     }
@@ -1515,11 +1513,18 @@ async function autoAuthorize() {
     if (!gisInited || !gapiInited) return;
 
     const storedToken = localStorage.getItem('gsheet_token');
+    const clientId = localStorage.getItem('gdrive_client_id');
+
     if (storedToken) {
         const token = JSON.parse(storedToken);
         gapi.client.setToken(token);
         updateAuthUI(true);
-        processGSheetQueue();
+        // Trigger auto-sync on authorization
+        fetchGSheetData('all');
+    } else if (clientId) {
+        // Try silent authorization if client ID exists but no token
+        console.log("Attempting silent authorization...");
+        handleAuthClick(true);
     } else {
         updateAuthUI(false);
     }
@@ -1623,8 +1628,13 @@ async function fetchGSheetData(mode = 'all') {
 
         if (status) status.innerText = `Status: Cloud Synced (${new Date().toLocaleTimeString()})`;
     } catch (err) {
-        if (status) status.innerText = `Status: Sync failed`;
-        console.error("GSheet Sync Error:", err);
+        if (err.status === 401) {
+            console.log("Auth expired during fetch. Retrying auth...");
+            handleAuthClick(true);
+        } else {
+            if (status) status.innerText = `Status: Sync failed`;
+            console.error("GSheet Sync Error:", err);
+        }
     }
 }
 
@@ -1661,8 +1671,9 @@ async function pushTransactionToGSheet(t) {
     } catch (err) {
         console.error("Error pushing to GSheet:", err);
         if (err.status === 401) {
-            updateAuthUI(false);
-            updateSyncStatus('error', 'Auth Expired');
+            console.log("Auth expired during push. Retrying auth...");
+            handleAuthClick(true);
+            queueTransaction(t); // Keep in queue for retry after auth
         } else {
             queueTransaction(t);
         }
@@ -1708,6 +1719,11 @@ async function processGSheetQueue() {
             updateSyncStatus('syncing', syncOutbox.length > 0 ? `Syncing ${syncOutbox.length}...` : 'Synced');
         } catch (err) {
             console.error("Queue processing error:", err);
+            if (err.status === 401) {
+                console.log("Auth expired during queue processing. Retrying auth...");
+                handleAuthClick(true);
+                break; // Stop loop, auth callback will restart queue
+            }
             updateSyncStatus('error', 'Retry in 30s');
             break;
         }
