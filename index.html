@@ -342,17 +342,25 @@
                     <div class="gdrive-creds">
                         <input type="text" id="gdrive-client-id" placeholder="Google Client ID" class="settings-input">
                         <input type="password" id="gdrive-api-key" placeholder="Google API Key" class="settings-input">
+                        <input type="text" id="gdrive-sheet-id" placeholder="Google Spreadsheet ID"
+                            class="settings-input">
                         <button class="save-creds-btn" onclick="saveGDriveCreds()">Save Credentials</button>
                     </div>
 
                     <div class="gdrive-controls" style="margin-top: 15px;">
                         <button id="gdrive-auth-btn" class="upload-btn" onclick="handleAuthClick()">🔓 Authorize Google
-                            Drive</button>
+                            Services</button>
                         <div class="sync-btn-row" style="margin-top: 10px;">
-                            <button id="gdrive-backup-btn" class="sync-btn" onclick="backupToDrive()" disabled>📤 Backup
-                                Now</button>
+                            <button id="gsheet-data-btn" class="sync-btn" onclick="fetchGSheetData('data')">📥 Sync Data
+                                from GSheet</button>
+                            <button id="gsheet-format-btn" class="sync-btn" onclick="fetchGSheetData('format')">📋 Sync
+                                Format from GSheet</button>
+                        </div>
+                        <div class="sync-btn-row" style="margin-top: 10px;">
+                            <button id="gdrive-backup-btn" class="sync-btn" onclick="backupToDrive()" disabled>📤 Full
+                                Backup to Drive</button>
                             <button id="gdrive-restore-btn" class="sync-btn" onclick="restoreFromDrive()" disabled>📥
-                                Restore Now</button>
+                                Full Restore from Drive</button>
                         </div>
 
                         <div

@@ -1627,11 +1627,13 @@ function updateSecurityUI() {
 function saveGDriveCreds() {
     const clientId = document.getElementById('gdrive-client-id').value;
     const apiKey = document.getElementById('gdrive-api-key').value;
+    const sheetId = document.getElementById('gdrive-sheet-id').value;
 
     if (clientId && apiKey) {
         localStorage.setItem('gdrive_client_id', clientId);
         localStorage.setItem('gdrive_api_key', apiKey);
-        alert("Google Drive credentials saved!");
+        if (sheetId) localStorage.setItem('gsheet_id', sheetId);
+        alert("Google credentials saved!");
         location.reload(); // Reload to initialize with new keys
     } else {
         alert("Please enter both Client ID and API Key.");
@@ -1641,8 +1643,10 @@ function saveGDriveCreds() {
 function loadGDriveCreds() {
     const clientId = localStorage.getItem('gdrive_client_id');
     const apiKey = localStorage.getItem('gdrive_api_key');
+    const sheetId = localStorage.getItem('gsheet_id');
     if (clientId) document.getElementById('gdrive-client-id').value = clientId;
     if (apiKey) document.getElementById('gdrive-api-key').value = apiKey;
+    if (sheetId) document.getElementById('gdrive-sheet-id').value = sheetId;
 }
 
 function handleAuthClick() {
@@ -1650,8 +1654,7 @@ function handleAuthClick() {
         if (resp.error !== undefined) throw (resp);
         document.getElementById('gdrive-auth-btn').innerText = '✅ Authorized';
         document.getElementById('gdrive-auth-btn').style.background = 'var(--success)';
-        document.getElementById('gdrive-backup-btn').disabled = false;
-        document.getElementById('gdrive-restore-btn').disabled = false;
+        document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = false);
         document.getElementById('gdrive-status').innerText = 'Status: Connected';
     };
 
@@ -1661,6 +1664,152 @@ function handleAuthClick() {
         tokenClient.requestAccessToken({ prompt: '' });
     }
 }
+
+// Direct Google Sheets Sync
+async function fetchGSheetData(mode = 'all') {
+    const sheetId = localStorage.getItem('gsheet_id');
+    if (!sheetId) {
+        alert("Please set a Spreadsheet ID in Settings first.");
+        return;
+    }
+
+    const status = document.getElementById('gdrive-status');
+    status.innerText = `Status: Syncing ${mode}...`;
+
+    try {
+        const ranges = [];
+        if (mode === 'format' || mode === 'all') ranges.push('List!A:C');
+        if (mode === 'data' || mode === 'all') {
+            ranges.push('Rasio!A1:Z100');
+            ranges.push('Money_tracker!A:K');
+        }
+
+        const response = await gapi.client.sheets.spreadsheets.values.batchGet({
+            spreadsheetId: sheetId,
+            ranges: ranges,
+        });
+
+        const valueRanges = response.result.valueRanges;
+        let newFormat = { categories: [], paymentMethods: [] };
+        let transactionsToSave = null;
+
+        valueRanges.forEach(vr => {
+            const range = vr.range;
+            const rows = vr.values || [];
+
+            if (range.includes('List')) {
+                const headers = rows[0]?.map(h => String(h).toLowerCase().trim()) || [];
+                const metodoIdx = headers.indexOf('metode');
+                const outcomeIdx = headers.indexOf('outcome list');
+                const incomeIdx = headers.indexOf('income list');
+
+                rows.slice(1).forEach(row => {
+                    if (metodoIdx !== -1 && row[metodoIdx]) {
+                        newFormat.paymentMethods.push({ name: row[metodoIdx], icon: "🏦", starting: 0 });
+                    }
+                    if (outcomeIdx !== -1 && row[outcomeIdx]) {
+                        newFormat.categories.push({ name: row[outcomeIdx], icon: "🛍️", type: "Outcome" });
+                    }
+                    if (incomeIdx !== -1 && row[incomeIdx]) {
+                        newFormat.categories.push({ name: row[incomeIdx], icon: "💰", type: "Income" });
+                    }
+                });
+            } else if (range.includes('Rasio')) {
+                let headerIdx = -1;
+                rows.forEach((row, idx) => {
+                    const rowLower = row.map(v => String(v).toLowerCase());
+                    if (rowLower.includes('item') && rowLower.includes('idr')) {
+                        headerIdx = idx;
+                    }
+                });
+
+                if (headerIdx !== -1) {
+                    const headers = rows[headerIdx].map(h => String(h).toLowerCase());
+                    const itemCol = headers.indexOf('item');
+                    const idrCol = headers.indexOf('idr');
+
+                    rows.slice(headerIdx + 1).forEach(row => {
+                        const item = row[itemCol];
+                        if (!item || item === 'Grand Total') return;
+
+                        const val = parseFloat(String(row[idrCol] || 0).replace(/[Rp.\s,]/g, '')) || 0;
+                        const match = newFormat.paymentMethods.find(m => m.name.toLowerCase().trim() === item.toLowerCase().trim());
+                        if (match) match.starting = val;
+                    });
+                }
+            } else if (range.includes('Money_tracker')) {
+                const headers = rows[0]?.map(h => String(h).toLowerCase().trim()) || [];
+                const colMap = {
+                    date: headers.indexOf('date'),
+                    account: headers.indexOf('account'),
+                    category: headers.indexOf('category'),
+                    desc: headers.indexOf('description'),
+                    amount: headers.indexOf('idr'),
+                    type: headers.indexOf('type')
+                };
+
+                transactionsToSave = rows.slice(1).filter(row => row[colMap.date]).map(row => {
+                    const typeRaw = String(row[colMap.type] || '').toLowerCase();
+                    return {
+                        id: Date.now() + Math.random(),
+                        date: row[colMap.date] || new Date().toISOString(),
+                        type: typeRaw.includes('income') ? 'income' : 'expense',
+                        category: row[colMap.category] || 'Uncategorized',
+                        description: row[colMap.desc] || '',
+                        amount: parseFloat(String(row[colMap.amount] || 0).replace(/[Rp.\s,]/g, '')) || 0,
+                        paymentMethod: row[colMap.account] || 'Cash'
+                    };
+                });
+            }
+        });
+
+        if (mode === 'format' || mode === 'all') {
+            if (newFormat.categories.length > 0) saveConfig(newFormat);
+        }
+        if (mode === 'data' || mode === 'all') {
+            if (transactionsToSave) saveTransactions(transactionsToSave);
+        }
+
+        updateBalance();
+        displayTransactions();
+        populateSelects();
+        status.innerText = `Status: Sync ${mode} successful`;
+        alert(`Google Sheets ${mode} sync successful!`);
+
+    } catch (err) {
+        status.innerText = `Status: Sync ${mode} failed`;
+        console.error("GSheet Sync Error:", err);
+        alert("Failed to sync from Google Sheets. Check your Spreadsheet ID and authorization.");
+    }
+}
+
+async function pushTransactionToGSheet(t) {
+    const sheetId = localStorage.getItem('gsheet_id');
+    if (!sheetId || !gapi.client.sheets) return;
+
+    try {
+        const values = [[
+            t.date.split('T')[0],
+            t.paymentMethod,
+            t.category,
+            t.description,
+            '', // Item
+            t.amount,
+            t.type === 'income' ? 'Income' : 'Outcome'
+        ]];
+
+        await gapi.client.sheets.spreadsheets.values.append({
+            spreadsheetId: sheetId,
+            range: 'Money_tracker!A:G',
+            valueInputOption: 'USER_ENTERED',
+            resource: { values: values }
+        });
+        console.log("Transaction pushed to GSheet successfully");
+    } catch (err) {
+        console.error("Error pushing to GSheet:", err);
+    }
+}
+
 
 async function backupToDrive() {
     const status = document.getElementById('gdrive-status');
@@ -1786,7 +1935,10 @@ function gapiLoaded() {
     gapi.load('client', async () => {
         await gapi.client.init({
             apiKey: API_KEY,
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+            discoveryDocs: [
+                'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest',
+                'https://www.googleapis.com/discovery/v1/apis/sheets/v4/rest'
+            ],
         });
         gapiInited = true;
     });
@@ -1797,7 +1949,7 @@ function gisLoaded() {
     if (!CLIENT_ID) return;
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: CLIENT_ID,
-        scope: 'https://www.googleapis.com/auth/drive.file',
+        scope: 'https://www.googleapis.com/auth/drive.file https://www.googleapis.com/auth/spreadsheets',
         callback: '', // defined at usage
     });
     gisInited = true;
@@ -1816,12 +1968,19 @@ function gisLoaded() {
     document.body.appendChild(s2);
 })();
 
-// Modify addTransaction to trigger auto-backup
+// Modify addTransaction to trigger auto-backup and GSheet push
 const originalAddTransaction = addTransaction;
 addTransaction = function (...args) {
     originalAddTransaction.apply(this, args);
+    const transactions = getTransactions();
+    const latest = transactions[transactions.length - 1];
+
     if (localStorage.getItem('gdrive_auto_backup') === 'true' && gapiInited && gapi.client.getToken()) {
         backupToDrive();
+    }
+
+    if (latest && gapiInited && gapi.client.getToken()) {
+        pushTransactionToGSheet(latest);
     }
 };
 
