@@ -436,6 +436,61 @@ body {
     color: white;
 }
 
+/* Trend Chart Controls */
+.chart-controls {
+    display: flex;
+    gap: 8px;
+}
+
+.trend-range-btn {
+    padding: 6px 12px;
+    background: #f1f5f9;
+    color: var(--text-muted);
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.trend-range-btn.active {
+    background: var(--bca-blue);
+    color: white;
+    border-color: var(--bca-blue);
+}
+
+.trend-range-btn:hover:not(.active) {
+    background: #e2e8f0;
+}
+
+/* GDrive Settings */
+.settings-input {
+    width: 100%;
+    padding: 10px 14px;
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    margin-bottom: 8px;
+}
+
+.save-creds-btn {
+    width: 100%;
+    padding: 10px;
+    background: #f8fafc;
+    border: 1px solid #cbd5e1;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    color: var(--bca-blue);
+}
+
+.save-creds-btn:hover {
+    background: #f0f7ff;
+    border-color: var(--bca-blue);
+}
+
 .current-rates {
     display: flex;
     gap: 12px;

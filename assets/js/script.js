@@ -36,6 +36,12 @@ let dailyChartInstance = null;
 let incomePieChartInstance = null;
 let outcomePieChartInstance = null;
 let USD_KURS = 16000; // Default Kurs USD
+let TREND_RANGE = 7; // Default chart range (7 days)
+
+// Google Drive Client
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
 
 // Get/Load Kurs from storage
 function getKurs() {
@@ -260,11 +266,11 @@ function importConfig(file, isSilent = false, mode = 'all') {
     reader.onload = function (e) {
         const data = new Uint8Array(e.target.result);
         const workbook = XLSX.read(data, { type: 'array' });
-        
+
         // Standardize sheet name lookup (case-insensitive)
         const sheetNames = workbook.SheetNames;
         const findSheet = (name) => sheetNames.find(s => s.toLowerCase() === name.toLowerCase());
-        
+
         const listSheetName = findSheet('List');
         const rasioSheetName = findSheet('Rasio');
         const trackerSheetName = findSheet('Money_tracker');
@@ -398,7 +404,7 @@ function importConfig(file, isSilent = false, mode = 'all') {
             if (newFormat.categories.length > 0) {
                 newFormat.categories.forEach(c => currentConfig.categories.push(c)); // Simplified merge
                 // Better: overwrite if all
-                saveConfig(newFormat); 
+                saveConfig(newFormat);
             }
             if (transactionsToSave) saveTransactions(transactionsToSave);
             success = true;
@@ -892,12 +898,12 @@ function handleManualAdjustment(methodName, currentValue) {
 }
 
 // Group outcomes for Chart.js
-function groupOutcomesByDate() {
+function groupOutcomesByDate(days = 7) {
     const transactions = getTransactions();
     const labels = [];
     const data = [];
 
-    for (let i = 6; i >= 0; i--) {
+    for (let i = days - 1; i >= 0; i--) {
         const d = new Date();
         d.setDate(d.getDate() - i);
         const dateStr = d.toISOString().split('T')[0];
@@ -906,11 +912,28 @@ function groupOutcomesByDate() {
             .filter(t => t.type === 'expense' && t.date.split('T')[0] === dateStr)
             .reduce((sum, t) => sum + t.amount, 0);
 
-        labels.push(d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' }));
+        // Format label: short weekday for 7D, numeric for 30D
+        const labelText = days <= 7
+            ? d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' })
+            : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+
+        labels.push(labelText);
         data.push(dayTotal);
     }
 
     return { labels, data };
+}
+
+// Update Trend Range
+function updateTrendRange(days) {
+    TREND_RANGE = days;
+
+    // Update UI buttons
+    document.querySelectorAll('.trend-range-btn').forEach(btn => {
+        btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
+    });
+
+    renderDailyChart();
 }
 
 // Render Daily Trend Chart
@@ -919,7 +942,7 @@ function renderDailyChart() {
     if (!canvas) return;
 
     const ctx = canvas.getContext('2d');
-    const chartData = groupOutcomesByDate();
+    const chartData = groupOutcomesByDate(TREND_RANGE);
 
     if (dailyChartInstance) {
         dailyChartInstance.destroy();
@@ -936,7 +959,7 @@ function renderDailyChart() {
                 backgroundColor: 'rgba(0, 96, 175, 0.1)',
                 fill: true,
                 tension: 0.4,
-                pointRadius: 6,
+                pointRadius: TREND_RANGE > 7 ? 4 : 6,
                 pointBackgroundColor: '#0060af',
                 pointBorderColor: '#fff',
                 pointBorderWidth: 2
@@ -949,10 +972,22 @@ function renderDailyChart() {
                 y: {
                     beginAtZero: true,
                     ticks: { callback: (v) => formatMoney(v) }
+                },
+                x: {
+                    ticks: {
+                        autoSkip: true,
+                        maxRotation: 0,
+                        font: { size: 10 }
+                    }
                 }
             },
             plugins: {
-                legend: { display: false }
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        label: (c) => ` Outcome: ${formatMoney(c.raw)}`
+                    }
+                }
             }
         }
     });
@@ -1455,7 +1490,7 @@ async function fetchRepoData(isAuto = false, mode = 'all') {
             btn = event.target;
             if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
         }
-    } catch (e) {}
+    } catch (e) { }
 
     let originalText = mode === 'data' ? '📥 Sync Data Only' : '📋 Sync Format Only';
     if (btn) {
@@ -1588,6 +1623,214 @@ function updateSecurityUI() {
     }
 }
 
-function toggleAutoSync(checkbox) {
-    localStorage.setItem('auto_sync_repo', checkbox.checked);
+// Google Drive Helper Functions
+function saveGDriveCreds() {
+    const clientId = document.getElementById('gdrive-client-id').value;
+    const apiKey = document.getElementById('gdrive-api-key').value;
+
+    if (clientId && apiKey) {
+        localStorage.setItem('gdrive_client_id', clientId);
+        localStorage.setItem('gdrive_api_key', apiKey);
+        alert("Google Drive credentials saved!");
+        location.reload(); // Reload to initialize with new keys
+    } else {
+        alert("Please enter both Client ID and API Key.");
+    }
 }
+
+function loadGDriveCreds() {
+    const clientId = localStorage.getItem('gdrive_client_id');
+    const apiKey = localStorage.getItem('gdrive_api_key');
+    if (clientId) document.getElementById('gdrive-client-id').value = clientId;
+    if (apiKey) document.getElementById('gdrive-api-key').value = apiKey;
+}
+
+function handleAuthClick() {
+    tokenClient.callback = async (resp) => {
+        if (resp.error !== undefined) throw (resp);
+        document.getElementById('gdrive-auth-btn').innerText = '✅ Authorized';
+        document.getElementById('gdrive-auth-btn').style.background = 'var(--success)';
+        document.getElementById('gdrive-backup-btn').disabled = false;
+        document.getElementById('gdrive-restore-btn').disabled = false;
+        document.getElementById('gdrive-status').innerText = 'Status: Connected';
+    };
+
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({ prompt: 'consent' });
+    } else {
+        tokenClient.requestAccessToken({ prompt: '' });
+    }
+}
+
+async function backupToDrive() {
+    const status = document.getElementById('gdrive-status');
+    status.innerText = 'Status: Backing up...';
+
+    try {
+        const transactions = getTransactions();
+        const config = getConfig();
+        const data = { transactions, config, lastBackup: new Date().toISOString() };
+        const content = JSON.stringify(data);
+
+        // Find existing backup file
+        const resp = await gapi.client.drive.files.list({
+            q: "name = 'money-tracker-backup.json' and trashed = false",
+            fields: 'files(id, name)',
+            spaces: 'drive'
+        });
+
+        const files = resp.result.files;
+        const fileId = files.length > 0 ? files[0].id : null;
+
+        const boundary = '-------314159265358979323846';
+        const delimiter = "\r\n--" + boundary + "\r\n";
+        const close_delim = "\r\n--" + boundary + "--";
+
+        const metadata = {
+            'name': 'money-tracker-backup.json',
+            'mimeType': 'application/json'
+        };
+
+        const multipartRequestBody =
+            delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            JSON.stringify(metadata) +
+            delimiter +
+            'Content-Type: application/json\r\n\r\n' +
+            content +
+            close_delim;
+
+        let request;
+        if (fileId) {
+            // Update existing
+            request = gapi.client.request({
+                'path': '/upload/drive/v3/files/' + fileId,
+                'method': 'PATCH',
+                'params': { 'uploadType': 'multipart' },
+                'headers': { 'Content-Type': 'multipart/related; boundary=' + boundary },
+                'body': multipartRequestBody
+            });
+        } else {
+            // Create new
+            request = gapi.client.request({
+                'path': '/upload/drive/v3/files',
+                'method': 'POST',
+                'params': { 'uploadType': 'multipart' },
+                'headers': { 'Content-Type': 'multipart/related; boundary=' + boundary },
+                'body': multipartRequestBody
+            });
+        }
+
+        await request;
+        status.innerText = `Status: Last backup ${new Date().toLocaleTimeString()}`;
+        console.log("Backup Successful");
+    } catch (err) {
+        status.innerText = 'Status: Backup failed';
+        console.error("Backup Error:", err);
+    }
+}
+
+async function restoreFromDrive() {
+    if (!confirm("Are you sure? This will OVERWRITE all your local data with the backup from Drive.")) return;
+
+    const status = document.getElementById('gdrive-status');
+    status.innerText = 'Status: Restoring...';
+
+    try {
+        const resp = await gapi.client.drive.files.list({
+            q: "name = 'money-tracker-backup.json' and trashed = false",
+            fields: 'files(id, name)',
+            spaces: 'drive'
+        });
+
+        const files = resp.result.files;
+        if (files.length === 0) {
+            alert("No backup file found in your Google Drive.");
+            status.innerText = 'Status: No backup found';
+            return;
+        }
+
+        const fileId = files[0].id;
+        const fileResp = await gapi.client.drive.files.get({
+            fileId: fileId,
+            alt: 'media'
+        });
+
+        const data = fileResp.result;
+        if (data.transactions && data.config) {
+            saveTransactions(data.transactions);
+            saveConfig(data.config);
+            updateBalance();
+            displayTransactions();
+            populateSelects();
+            status.innerText = 'Status: Restore successful';
+            alert("Restore successful! Your data has been updated.");
+        } else {
+            throw new Error("Invalid backup format");
+        }
+    } catch (err) {
+        status.innerText = 'Status: Restore failed';
+        console.error("Restore Error:", err);
+        alert("Failed to restore data from Drive.");
+    }
+}
+
+function toggleGDriveAutoBackup(checkbox) {
+    localStorage.setItem('gdrive_auto_backup', checkbox.checked);
+}
+
+// Google API Init
+function gapiLoaded() {
+    const API_KEY = localStorage.getItem('gdrive_api_key');
+    if (!API_KEY) return;
+    gapi.load('client', async () => {
+        await gapi.client.init({
+            apiKey: API_KEY,
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        });
+        gapiInited = true;
+    });
+}
+
+function gisLoaded() {
+    const CLIENT_ID = localStorage.getItem('gdrive_client_id');
+    if (!CLIENT_ID) return;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: CLIENT_ID,
+        scope: 'https://www.googleapis.com/auth/drive.file',
+        callback: '', // defined at usage
+    });
+    gisInited = true;
+}
+
+// Initialize GDrive scripts
+(function loadGDriveScripts() {
+    const s1 = document.createElement('script');
+    s1.src = "https://apis.google.com/js/api.js";
+    s1.onload = gapiLoaded;
+    document.body.appendChild(s1);
+
+    const s2 = document.createElement('script');
+    s2.src = "https://accounts.google.com/gsi/client";
+    s2.onload = gisLoaded;
+    document.body.appendChild(s2);
+})();
+
+// Modify addTransaction to trigger auto-backup
+const originalAddTransaction = addTransaction;
+addTransaction = function (...args) {
+    originalAddTransaction.apply(this, args);
+    if (localStorage.getItem('gdrive_auto_backup') === 'true' && gapiInited && gapi.client.getToken()) {
+        backupToDrive();
+    }
+};
+
+// Update init to load GDrive settings
+const originalInit = init;
+init = function () {
+    originalInit.apply(this, arguments);
+    loadGDriveCreds();
+    const autoBackup = localStorage.getItem('gdrive_auto_backup') === 'true';
+    document.getElementById('gdrive-auto-backup').checked = autoBackup;
+};
+
