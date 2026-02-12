@@ -312,61 +312,48 @@
 
                 <hr class="settings-divider">
 
-                <!-- Section 3: Google Drive Backup -->
+                <!-- Section 3: Cloud Sync (Google Sheets) -->
                 <div class="settings-section">
                     <div class="section-header">
                         <span class="section-icon">☁️</span>
                         <div>
-                            <h3>Google Drive Backup</h3>
-                            <p class="settings-desc">Keep your data safe in the cloud</p>
+                            <h3>Cloud Sync</h3>
+                            <p class="settings-desc">Google Sheets Synchronization</p>
                         </div>
                     </div>
 
                     <div class="gdrive-creds">
-                        <input type="text" id="gdrive-client-id" placeholder="Google Client ID" class="settings-input">
-                        <input type="password" id="gdrive-api-key" placeholder="Google API Key" class="settings-input">
+                        <!-- Hidden but present for logic -->
+                        <div id="advanced-creds" style="display: none;">
+                            <input type="text" id="gdrive-client-id" placeholder="Google Client ID"
+                                class="settings-input">
+                            <input type="password" id="gdrive-api-key" placeholder="Google API Key"
+                                class="settings-input">
+                        </div>
                         <input type="text" id="gdrive-sheet-id" placeholder="Google Spreadsheet ID"
                             class="settings-input">
-                        <button class="save-creds-btn" onclick="saveGDriveCreds()">Save Credentials</button>
+                        <div style="display: flex; gap: 8px; margin-top: 10px;">
+                            <button class="save-creds-btn" onclick="saveGDriveCreds()" style="flex: 1;">Save
+                                Configuration</button>
+                            <button class="sync-btn" onclick="toggleAdvanced()"
+                                style="width: auto; padding: 0 10px;">⚙️</button>
+                        </div>
                     </div>
 
                     <div class="gdrive-controls" style="margin-top: 15px;">
-                        <button id="gdrive-auth-btn" class="upload-btn" onclick="handleAuthClick()">🔓 Authorize Google
-                            Services</button>
-                        <div class="sync-btn-row" style="margin-top: 10px;">
-                            <button id="gsheet-data-btn" class="sync-btn" onclick="fetchGSheetData('data')">📥 Sync Data
-                                from GSheet</button>
-                            <button id="gsheet-format-btn" class="sync-btn" onclick="fetchGSheetData('format')">📋 Sync
-                                Format from GSheet</button>
-                        </div>
-                        <div class="sync-btn-row" style="margin-top: 10px;">
-                            <button id="gdrive-backup-btn" class="sync-btn" onclick="backupToDrive()" disabled>📤 Full
-                                Backup to Drive</button>
-                            <button id="gdrive-restore-btn" class="sync-btn" onclick="restoreFromDrive()" disabled>📥
-                                Full Restore from Drive</button>
-                        </div>
+                        <button id="refresh-cloud-btn" class="upload-btn" onclick="fetchGSheetData('all')"
+                            style="background: var(--bca-blue); color: white; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                            🔄 Refresh Cloud Data
+                        </button>
 
                         <div
-                            style="margin-top: 15px; padding: 12px; background: #f0f7ff; border-radius: 12px; border: 1px solid #d0e7ff;">
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <h4 style="margin: 0; color: var(--bca-blue); font-size: 0.9rem;">Auto-Backup to
-                                        Drive</h4>
-                                    <p style="margin: 3px 0 0 0; color: var(--text-muted); font-size: 0.75rem;">Backup
-                                        after every transaction</p>
-                                </div>
-                                <label class="switch"
-                                    style="position: relative; display: inline-block; width: 44px; height: 24px;">
-                                    <input type="checkbox" id="gdrive-auto-backup"
-                                        onchange="toggleGDriveAutoBackup(this)"
-                                        style="opacity: 0; width: 0; height: 0; position: absolute;">
-                                    <span
-                                        style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px;"></span>
-                                </label>
-                            </div>
+                            style="margin-top: 15px; padding: 12px; background: #f0f7ff; border-radius: 12px; border: 1px solid #d0e7ff; display: none;">
+                            <!-- Kept for backward compatibility but hidden -->
+                            <input type="checkbox" id="gdrive-auto-backup" checked hidden>
                         </div>
                     </div>
-                    <div id="gdrive-status" class="sync-status" style="margin-top: 10px;">Status: Not connected</div>
+                    <div id="gdrive-status" class="sync-status" style="margin-top: 10px; font-size: 0.8rem;">Status:
+                        Initializing...</div>
                 </div>
 
                 <hr class="settings-divider">

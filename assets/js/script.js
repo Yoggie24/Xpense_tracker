@@ -1421,19 +1421,28 @@ function updateSecurityUI() {
 }
 
 // Google Drive Helper Functions
+function toggleAdvanced() {
+    const adv = document.getElementById('advanced-creds');
+    adv.style.display = adv.style.display === 'none' ? 'block' : 'none';
+}
+
 function saveGDriveCreds() {
     const clientId = document.getElementById('gdrive-client-id').value;
     const apiKey = document.getElementById('gdrive-api-key').value;
     const sheetId = document.getElementById('gdrive-sheet-id').value;
 
-    if (clientId && apiKey) {
-        localStorage.setItem('gdrive_client_id', clientId);
-        localStorage.setItem('gdrive_api_key', apiKey);
-        if (sheetId) localStorage.setItem('gsheet_id', sheetId);
-        alert("Google credentials saved!");
-        location.reload(); // Reload to initialize with new keys
+    if (sheetId) {
+        localStorage.setItem('gsheet_id', sheetId);
+        if (clientId) localStorage.setItem('gdrive_client_id', clientId);
+        if (apiKey) localStorage.setItem('gdrive_api_key', apiKey);
+
+        // Hide advanced again if they were showing
+        document.getElementById('advanced-creds').style.display = 'none';
+
+        alert("Configuration saved!");
+        location.reload();
     } else {
-        alert("Please enter both Client ID and API Key.");
+        alert("Please enter at least the Spreadsheet ID.");
     }
 }
 
@@ -1465,19 +1474,12 @@ function handleAuthClick() {
 }
 
 function updateAuthUI(isAuthorized) {
-    const authBtn = document.getElementById('gdrive-auth-btn');
-    if (authBtn) {
-        if (isAuthorized) {
-            authBtn.innerText = '✅ Authorized';
-            authBtn.style.background = 'var(--success)';
-            document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = false);
-        } else {
-            authBtn.innerText = '🔓 Authorize Google Services';
-            authBtn.style.background = 'var(--bca-blue)';
-            document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = true);
-        }
+    updateSyncStatus(isAuthorized ? 'ready' : 'offline', isAuthorized ? 'Cloud Connected' : 'Offline (Unauthenticated)');
+
+    // If we just got authorized, try to process any pending items
+    if (isAuthorized) {
+        processGSheetQueue();
     }
-    updateSyncStatus(isAuthorized ? 'ready' : 'offline', isAuthorized ? 'Ready' : 'Connected (Unauthorized)');
 }
 
 function updateSyncStatus(state, message) {
@@ -1526,22 +1528,13 @@ async function autoAuthorize() {
 // Silent Background Sync & Queue
 async function fetchGSheetData(mode = 'all') {
     const sheetId = localStorage.getItem('gsheet_id');
-    if (!sheetId) {
-        alert("Please set a Spreadsheet ID in Settings first.");
-        return;
-    }
+    if (!sheetId) return;
 
     const status = document.getElementById('gdrive-status');
-    status.innerText = `Status: Syncing ${mode}...`;
+    if (status) status.innerText = `Status: Refreshing Cloud Data...`;
 
     try {
-        const ranges = [];
-        if (mode === 'format' || mode === 'all') ranges.push('List!A:C');
-        if (mode === 'data' || mode === 'all') {
-            ranges.push('Rasio!A1:Z100');
-            ranges.push('Money_tracker!A:K');
-        }
-
+        const ranges = ['List!A:C', 'Rasio!A1:Z100', 'Money_tracker!A:K'];
         const response = await gapi.client.sheets.spreadsheets.values.batchGet({
             spreadsheetId: sheetId,
             ranges: ranges,
@@ -1621,23 +1614,17 @@ async function fetchGSheetData(mode = 'all') {
             }
         });
 
-        if (mode === 'format' || mode === 'all') {
-            if (newFormat.categories.length > 0) saveConfig(newFormat);
-        }
-        if (mode === 'data' || mode === 'all') {
-            if (transactionsToSave) saveTransactions(transactionsToSave);
-        }
+        if (newFormat.categories.length > 0) saveConfig(newFormat);
+        if (transactionsToSave) saveTransactions(transactionsToSave);
 
         updateBalance();
         displayTransactions();
         populateSelects();
-        status.innerText = `Status: Sync ${mode} successful`;
-        alert(`Google Sheets ${mode} sync successful!`);
 
+        if (status) status.innerText = `Status: Cloud Synced (${new Date().toLocaleTimeString()})`;
     } catch (err) {
-        status.innerText = `Status: Sync ${mode} failed`;
+        if (status) status.innerText = `Status: Sync failed`;
         console.error("GSheet Sync Error:", err);
-        alert("Failed to sync from Google Sheets. Check your Spreadsheet ID and authorization.");
     }
 }
 
@@ -1851,6 +1838,21 @@ async function restoreFromDrive() {
     }
 }
 
+// Silent Auto-Reconnect
+async function autoAuthorize() {
+    if (!gisInited || !gapiInited) return;
+
+    const storedToken = localStorage.getItem('gsheet_token');
+    if (storedToken) {
+        const token = JSON.parse(storedToken);
+        gapi.client.setToken(token);
+        updateAuthUI(true);
+        processGSheetQueue();
+    } else {
+        updateAuthUI(false);
+    }
+}
+
 function toggleGDriveAutoBackup(checkbox) {
     localStorage.setItem('gdrive_auto_backup', checkbox.checked);
 }
@@ -1897,18 +1899,15 @@ function gisLoaded() {
     document.body.appendChild(s2);
 })();
 
-// Modify addTransaction to trigger auto-backup and GSheet push
+// Modify addTransaction to trigger automatic GSheet push
 const originalAddTransaction = addTransaction;
 addTransaction = function (...args) {
     originalAddTransaction.apply(this, args);
     const transactions = getTransactions();
     const latest = transactions[transactions.length - 1];
 
-    if (localStorage.getItem('gdrive_auto_backup') === 'true' && gapiInited && gapi.client.getToken()) {
-        backupToDrive();
-    }
-
-    if (latest && gapiInited && gapi.client.getToken()) {
+    if (latest) {
+        // Unconditional push attempt - logic inside handles queuing if offline/unauthorized
         pushTransactionToGSheet(latest);
     }
 };
