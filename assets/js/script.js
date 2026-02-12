@@ -42,6 +42,9 @@ let TREND_RANGE = 7; // Default chart range (7 days)
 let tokenClient;
 let gapiInited = false;
 let gisInited = false;
+let syncOutbox = JSON.parse(localStorage.getItem('gsheet_outbox') || '[]');
+let isProcessingQueue = false;
+let authInterval = null;
 
 // Get/Load Kurs from storage
 function getKurs() {
@@ -1651,11 +1654,13 @@ function loadGDriveCreds() {
 
 function handleAuthClick() {
     tokenClient.callback = async (resp) => {
-        if (resp.error !== undefined) throw (resp);
-        document.getElementById('gdrive-auth-btn').innerText = '✅ Authorized';
-        document.getElementById('gdrive-auth-btn').style.background = 'var(--success)';
-        document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = false);
-        document.getElementById('gdrive-status').innerText = 'Status: Connected';
+        if (resp.error !== undefined) {
+            updateSyncStatus('error', 'Auth Failed');
+            throw (resp);
+        }
+        localStorage.setItem('gsheet_token', JSON.stringify(resp));
+        updateAuthUI(true);
+        processGSheetQueue();
     };
 
     if (gapi.client.getToken() === null) {
@@ -1665,7 +1670,66 @@ function handleAuthClick() {
     }
 }
 
-// Direct Google Sheets Sync
+function updateAuthUI(isAuthorized) {
+    const authBtn = document.getElementById('gdrive-auth-btn');
+    if (authBtn) {
+        if (isAuthorized) {
+            authBtn.innerText = '✅ Authorized';
+            authBtn.style.background = 'var(--success)';
+            document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = false);
+        } else {
+            authBtn.innerText = '🔓 Authorize Google Services';
+            authBtn.style.background = 'var(--bca-blue)';
+            document.querySelectorAll('.sync-btn').forEach(btn => btn.disabled = true);
+        }
+    }
+    updateSyncStatus(isAuthorized ? 'ready' : 'offline', isAuthorized ? 'Ready' : 'Connected (Unauthorized)');
+}
+
+function updateSyncStatus(state, message) {
+    const dot = document.getElementById('sync-dot');
+    const text = document.getElementById('sync-text');
+    if (!dot || !text) return;
+
+    text.innerText = message;
+    switch (state) {
+        case 'syncing':
+            dot.style.background = '#3b82f6'; // blue
+            dot.style.boxShadow = '0 0 8px #3b82f6';
+            break;
+        case 'ready':
+            dot.style.background = '#22c55e'; // green
+            dot.style.boxShadow = 'none';
+            break;
+        case 'pending':
+            dot.style.background = '#f59e0b'; // amber
+            dot.style.boxShadow = '0 0 8px #f59e0b';
+            break;
+        case 'error':
+            dot.style.background = '#ef4444'; // red
+            dot.style.boxShadow = 'none';
+            break;
+        default:
+            dot.style.background = '#cbd5e1'; // grey
+            dot.style.boxShadow = 'none';
+    }
+}
+
+async function autoAuthorize() {
+    if (!gisInited || !gapiInited) return;
+
+    const storedToken = localStorage.getItem('gsheet_token');
+    if (storedToken) {
+        const token = JSON.parse(storedToken);
+        gapi.client.setToken(token);
+        updateAuthUI(true);
+        processGSheetQueue();
+    } else {
+        updateAuthUI(false);
+    }
+}
+
+// Silent Background Sync & Queue
 async function fetchGSheetData(mode = 'all') {
     const sheetId = localStorage.getItem('gsheet_id');
     if (!sheetId) {
@@ -1787,6 +1851,13 @@ async function pushTransactionToGSheet(t) {
     const sheetId = localStorage.getItem('gsheet_id');
     if (!sheetId || !gapi.client.sheets) return;
 
+    // Check online status
+    if (!navigator.onLine) {
+        queueTransaction(t);
+        return;
+    }
+
+    updateSyncStatus('syncing', 'Syncing...');
     try {
         const values = [[
             t.date.split('T')[0],
@@ -1804,11 +1875,73 @@ async function pushTransactionToGSheet(t) {
             valueInputOption: 'USER_ENTERED',
             resource: { values: values }
         });
+        updateSyncStatus('ready', 'Synced');
         console.log("Transaction pushed to GSheet successfully");
     } catch (err) {
         console.error("Error pushing to GSheet:", err);
+        if (err.status === 401) {
+            updateAuthUI(false);
+            updateSyncStatus('error', 'Auth Expired');
+        } else {
+            queueTransaction(t);
+        }
     }
 }
+
+function queueTransaction(t) {
+    if (syncOutbox.find(item => item.id === t.id)) return;
+    syncOutbox.push(t);
+    localStorage.setItem('gsheet_outbox', JSON.stringify(syncOutbox));
+    updateSyncStatus('pending', `${syncOutbox.length} Pending`);
+}
+
+async function processGSheetQueue() {
+    if (isProcessingQueue || syncOutbox.length === 0 || !navigator.onLine) return;
+    if (!gapi.client.getToken()) return;
+
+    isProcessingQueue = true;
+    updateSyncStatus('syncing', `Syncing ${syncOutbox.length}...`);
+
+    while (syncOutbox.length > 0) {
+        const t = syncOutbox[0];
+        try {
+            const values = [[
+                t.date.split('T')[0],
+                t.paymentMethod,
+                t.category,
+                t.description,
+                '', // Item
+                t.amount,
+                t.type === 'income' ? 'Income' : 'Outcome'
+            ]];
+
+            await gapi.client.sheets.spreadsheets.values.append({
+                spreadsheetId: localStorage.getItem('gsheet_id'),
+                range: 'Money_tracker!A:G',
+                valueInputOption: 'USER_ENTERED',
+                resource: { values: values }
+            });
+
+            syncOutbox.shift();
+            localStorage.setItem('gsheet_outbox', JSON.stringify(syncOutbox));
+            updateSyncStatus('syncing', syncOutbox.length > 0 ? `Syncing ${syncOutbox.length}...` : 'Synced');
+        } catch (err) {
+            console.error("Queue processing error:", err);
+            updateSyncStatus('error', 'Retry in 30s');
+            break;
+        }
+    }
+
+    isProcessingQueue = false;
+    if (syncOutbox.length === 0) {
+        updateSyncStatus('ready', 'Synced');
+    } else {
+        updateSyncStatus('pending', `${syncOutbox.length} Pending`);
+    }
+}
+
+window.addEventListener('online', processGSheetQueue);
+setInterval(processGSheetQueue, 30000); // Check every 30s
 
 
 async function backupToDrive() {
@@ -1941,6 +2074,7 @@ function gapiLoaded() {
             ],
         });
         gapiInited = true;
+        autoAuthorize();
     });
 }
 
@@ -1953,6 +2087,7 @@ function gisLoaded() {
         callback: '', // defined at usage
     });
     gisInited = true;
+    autoAuthorize();
 }
 
 // Initialize GDrive scripts
