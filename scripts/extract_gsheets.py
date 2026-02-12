@@ -58,26 +58,26 @@ def extract_config(sheet_name_or_id):
                 income_idx = headers.index('income list') if 'income list' in headers else -1
                 
                 for row in list_data[1:]:
-                    metodo = row[metodo_idx] if metodo_idx != -1 and len(row) > metodo_idx else None
-                    outcome = row[outcome_idx] if outcome_idx != -1 and len(row) > outcome_idx else None
-                    income = row[income_idx] if income_idx != -1 and len(row) > income_idx else None
+                    metodo = row[metodo_idx].strip() if metodo_idx != -1 and len(row) > metodo_idx else None
+                    outcome = row[outcome_idx].strip() if outcome_idx != -1 and len(row) > outcome_idx else None
+                    income = row[income_idx].strip() if income_idx != -1 and len(row) > income_idx else None
                     
                     if metodo:
                         config["paymentMethods"].append({
-                            "name": metodo.strip(),
+                            "name": metodo,
                             "icon": "🏦",
                             "starting": 0
                         })
                     if outcome:
                         config["categories"].append({
-                            "name": outcome.strip(),
+                            "name": outcome,
                             "icon": "🛍️",
                             "starting": 0,
                             "type": "Outcome"
                         })
                     if income:
                         config["categories"].append({
-                            "name": income.strip(),
+                            "name": income,
                             "icon": "💰",
                             "starting": 0,
                             "type": "Income"
@@ -94,13 +94,13 @@ def extract_config(sheet_name_or_id):
             for idx, row in enumerate(rasio_rows[:10]):
                 row_lower = [v.lower().strip() for v in row]
                 if 'item' in row_lower and 'idr' in row_lower:
-                    header_row = row_lower
                     header_idx = idx
                     break
             
             if header_idx != -1:
-                item_col = [v.lower().strip() for v in rasio_rows[header_idx]].index('item')
-                idr_col = [v.lower().strip() for v in rasio_rows[header_idx]].index('idr')
+                headers = [h.lower().strip() for h in rasio_rows[header_idx]]
+                item_col = headers.index('item')
+                idr_col = headers.index('idr')
                 
                 for row in rasio_rows[header_idx+1:]:
                     if not row or len(row) <= max(item_col, idr_col): continue
@@ -120,9 +120,9 @@ def extract_config(sheet_name_or_id):
         except gspread.exceptions.WorksheetNotFound:
             print("Warning: 'Rasio' worksheet not found.")
 
-        # Ensure unique lists
-        config["paymentMethods"] = [dict(t) for t in {tuple(d.items()) for d in config["paymentMethods"]}]
-        config["categories"] = [dict(t) for t in {tuple(d.items()) for d in config["categories"]}]
+        # Final Cleaning & Unique Lists
+        config["paymentMethods"] = [dict(t) for t in {tuple(d.items()) for d in config["paymentMethods"] if d["name"]}]
+        config["categories"] = [dict(t) for t in {tuple(d.items()) for d in config["categories"] if d["name"]}]
 
         print(json.dumps(config, indent=4))
         # Support both names for backward/forward compatibility
@@ -131,7 +131,7 @@ def extract_config(sheet_name_or_id):
                 json.dump(config, f, indent=4)
         
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error extracting config: {e}")
 
 if __name__ == "__main__":
     target = get_target_sheet()

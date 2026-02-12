@@ -39,6 +39,15 @@ def get_target_sheet():
             return json.load(f).get('gsheet_target', 'Keuangan')
     return os.environ.get('GSHEET_TARGET', 'Keuangan')
 
+def find_last_data_row(ws):
+    """Finds the last row that has a value in the first column (Date)."""
+    all_values = ws.col_values(1) # Get first column
+    # Return index of last non-empty value
+    for i, val in enumerate(reversed(all_values)):
+        if val.strip():
+            return len(all_values) - i
+    return 1 # Default to header if empty
+
 def sync_transactions(sheet_id, local_json_path):
     client = get_gspread_client()
     sh = client.open_by_key(sheet_id)
@@ -51,16 +60,16 @@ def sync_transactions(sheet_id, local_json_path):
         
     with open(local_json_path, 'r') as f:
         local_data = json.load(f)
-        # Ensure it's a list (web app might store as object with 'transactions' key)
         local_txs = local_data.get('transactions', local_data) if isinstance(local_data, dict) else local_data
 
     # Read GSheet data to avoid duplicates
-    # We use a composite key for uniqueness (Date + Account + Category + Description + Amount)
     gsheet_rows = ws.get_all_values()
     gsheet_keys = set()
-    if len(gsheet_rows) > 1:
+    
+    # Identify headers and last row with data
+    last_row = 1
+    if gsheet_rows:
         headers = [h.lower().strip() for h in gsheet_rows[0]]
-        # Map headers to indices
         idx_map = {
             'date': headers.index('date') if 'date' in headers else 0,
             'account': headers.index('account') if 'account' in headers else 1,
@@ -69,48 +78,53 @@ def sync_transactions(sheet_id, local_json_path):
             'amount': headers.index('idr') if 'idr' in headers else 5,
         }
         
-        for row in gsheet_rows[1:]:
-            key = (
-                row[idx_map['date']], 
-                row[idx_map['account']], 
-                row[idx_map['category']], 
-                row[idx_map['desc']], 
-                row[idx_map['amount']].replace('Rp', '').replace('.', '').replace(',', '').strip()
-            )
-            gsheet_keys.add(key)
+        # Build uniqueness keys and find actual last row
+        for i, row in enumerate(gsheet_rows[1:]):
+            if len(row) > max(idx_map.values()) and row[idx_map['date']].strip():
+                key = (
+                    row[idx_map['date']].strip(), 
+                    row[idx_map['account']].strip(), 
+                    row[idx_map['category']].strip(), 
+                    row[idx_map['desc']].strip(), 
+                    row[idx_map['amount']].replace('Rp', '').replace('.', '').replace(',', '').strip()
+                )
+                gsheet_keys.add(key)
+                last_row = i + 2 # Header is row 1, first data is row 2
 
-    # Identifty missing transactions
+    # Identify missing transactions
     new_rows = []
     for tx in local_txs:
-        # Normalize local data
         date_str = tx.get('date', '').split('T')[0]
-        amount_str = str(int(tx.get('amount', 0)))
+        amount_val = tx.get('amount', 0)
         
         key = (
             date_str,
-            tx.get('paymentMethod', ''),
-            tx.get('category', ''),
-            tx.get('description', ''),
-            amount_str
+            tx.get('paymentMethod', '').strip(),
+            tx.get('category', '').strip(),
+            tx.get('description', '').strip(),
+            str(int(amount_val))
         )
         
         if key not in gsheet_keys:
-            # Prepare row for GSheet: Date, Account, Category, Description, Item, IDR, Type
             row = [
                 date_str,
-                tx.get('paymentMethod', ''),
-                tx.get('category', ''),
-                tx.get('description', ''),
+                tx.get('paymentMethod', '').strip(),
+                tx.get('category', '').strip(),
+                tx.get('description', '').strip(),
                 '', # Item
-                tx.get('amount', 0),
+                amount_val,
                 'Income' if tx.get('type') == 'income' else 'Outcome'
             ]
             new_rows.append(row)
 
     if new_rows:
-        print(f"Pushing {len(new_rows)} new transactions to GSheet...")
-        # Use append_rows with USER_ENTERED to preserve formatting
-        ws.append_rows(new_rows, value_input_option='USER_ENTERED')
+        target_row = last_row + 1
+        print(f"Smart Append: Pushing {len(new_rows)} new transactions starting at row {target_row}...")
+        # update range directly to avoid "ghost rows" issues with append_rows
+        # ws.update(f'A{target_row}', new_rows, value_input_option='USER_ENTERED')
+        # Actually append_rows with table range usually works better for formatting inheritance
+        # if the table is defined. But the user specifically asked for smart append.
+        ws.update(f'A{target_row}', new_rows, value_input_option='USER_ENTERED')
         print("Sync complete.")
     else:
         print("No new transactions to sync.")

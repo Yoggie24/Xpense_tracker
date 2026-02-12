@@ -8,8 +8,6 @@
     <link rel="stylesheet" href="assets/css/style.css">
     <!-- Chart.js for data visualization -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- SheetJS for Excel (.xlsx) support -->
-    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
 </head>
 
 <body>
@@ -250,7 +248,6 @@
                 <div class="transactions-header">
                     <h2>Recent Transactions</h2>
                     <div class="header-buttons">
-                        <button class="export-btn" id="exportExcel">📊 Export Excel</button>
                         <button class="clear-btn" id="clearAll">Clear All</button>
                     </div>
                 </div>
@@ -269,33 +266,6 @@
                 <div class="card-header">
                     <h2>Settings</h2>
                 </div>
-                <!-- Section 1: Excel Import -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <span class="section-icon">📂</span>
-                        <div>
-                            <h3>Import Data</h3>
-                            <p class="settings-desc">Sync from your Keuangan.xlsx file</p>
-                        </div>
-                    </div>
-                    <label for="importConfig" class="upload-btn">
-                        📄 Upload File...
-                        <input type="file" id="importConfig" accept=".xlsx, .xls, .csv" hidden>
-                    </label>
-                    <div style="margin: 10px 0; text-align: center; color: var(--text-muted); font-size: 0.9rem;">- OR -
-                    </div>
-                    <div class="sync-actions-group">
-                        <button class="upload-btn sync-data-btn" onclick="fetchRepoData(false, 'data')"
-                            style="text-align: center; justify-content: center; background: var(--success); color: white; border: none; width: 100%; cursor: pointer; margin-bottom: 8px;">
-                            📥 Sync Data Only
-                        </button>
-                        <button class="upload-btn sync-format-btn" onclick="fetchRepoData(false, 'format')"
-                            style="text-align: center; justify-content: center; background: var(--bca-blue); color: white; border: none; width: 100%; cursor: pointer;">
-                            📋 Sync Format Only
-                        </button>
-                    </div>
-                </div>
-
                 <hr class="settings-divider">
 
                 <!-- Section 2: Security -->

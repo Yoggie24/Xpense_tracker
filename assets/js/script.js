@@ -1,4 +1,4 @@
-// Default configuration hardcoded from Keuangan.xlsx
+// Default configuration for the Money Tracker app
 const DEFAULT_CONFIG = {
     "categories": [
         { "name": "Makan", "icon": "", "starting": 0, "type": "Outcome" },
@@ -261,171 +261,7 @@ function exportConfig() {
     document.body.removeChild(link);
 }
 
-// Import config (Supports both CSV and Excel)
-// Modified to specifically handle Keuangan.xlsx structure
-// mode: 'all' (default), 'data' (transactions/balances only), 'format' (categories/methods only)
-function importConfig(file, isSilent = false, mode = 'all') {
-    const reader = new FileReader();
-    reader.onload = function (e) {
-        const data = new Uint8Array(e.target.result);
-        const workbook = XLSX.read(data, { type: 'array' });
-
-        // Standardize sheet name lookup (case-insensitive)
-        const sheetNames = workbook.SheetNames;
-        const findSheet = (name) => sheetNames.find(s => s.toLowerCase() === name.toLowerCase());
-
-        const listSheetName = findSheet('List');
-        const rasioSheetName = findSheet('Rasio');
-        const trackerSheetName = findSheet('Money_tracker');
-
-        const currentConfig = getConfig();
-        const newFormat = { categories: [], paymentMethods: [] };
-        let transactionsToSave = null;
-
-        // 1. Process Format (Sheet: 'List')
-        if (listSheetName && (mode === 'all' || mode === 'format')) {
-            const listSheet = workbook.Sheets[listSheetName];
-            const listData = XLSX.utils.sheet_to_json(listSheet);
-
-            listData.forEach(row => {
-                // Find keys case-insensitively
-                const getVal = (obj, keyName) => {
-                    const foundKey = Object.keys(obj).find(k => k.toLowerCase().trim() === keyName.toLowerCase());
-                    return foundKey ? obj[foundKey] : null;
-                };
-
-                const metodo = getVal(row, 'Metode');
-                const outcomeItem = getVal(row, 'Outcome List');
-                const incomeItem = getVal(row, 'Income List');
-
-                if (metodo) {
-                    newFormat.paymentMethods.push({ name: metodo, icon: '', starting: 0 });
-                }
-                if (outcomeItem) {
-                    newFormat.categories.push({ name: outcomeItem, icon: '', starting: 0, type: 'Outcome' });
-                }
-                if (incomeItem) {
-                    newFormat.categories.push({ name: incomeItem, icon: '', starting: 0, type: 'Income' });
-                }
-            });
-        }
-
-        // 2. Process Starting Balances (Sheet: 'Rasio')
-        if (rasioSheetName && (mode === 'all' || mode === 'data')) {
-            const rasioSheet = workbook.Sheets[rasioSheetName];
-            const rasioData = XLSX.utils.sheet_to_json(rasioSheet, { header: 1 });
-
-            let headers = [];
-            let headerRowIdx = -1;
-            for (let i = 0; i < Math.min(rasioData.length, 10); i++) {
-                const row = rasioData[i] || [];
-                const rowStr = row.map(v => String(v).toLowerCase());
-                if (rowStr.includes('item') && (rowStr.includes('idr') || rowStr.includes('saldo'))) {
-                    headers = row;
-                    headerRowIdx = i;
-                    break;
-                }
-            }
-
-            if (headerRowIdx !== -1) {
-                const findIdx = (names) => headers.findIndex(h => names.includes(String(h).toLowerCase().trim()));
-                const itemIdx = findIdx(['item']);
-                const idrIdx = findIdx(['idr', 'saldo', 'balance']);
-                const usdIdx = findIdx(['usd']);
-
-                const targetMethods = (mode === 'data') ? currentConfig.paymentMethods : newFormat.paymentMethods;
-
-                for (let i = headerRowIdx + 1; i < rasioData.length; i++) {
-                    const row = rasioData[i];
-                    if (!row) continue;
-                    const itemName = row[itemIdx];
-                    if (!itemName || itemName === 'Grand Total') continue;
-
-                    const idrValue = parseFloat(row[idrIdx] || 0);
-                    const usdValue = usdIdx !== -1 ? parseFloat(row[usdIdx] || 0) : 0;
-
-                    const method = targetMethods.find(m => m.name.trim().toLowerCase() === String(itemName).trim().toLowerCase());
-                    if (method) {
-                        if (usdValue > 0 || itemName.toLowerCase().includes('vallas') || itemName.toLowerCase().includes('jenius')) {
-                            method.isUSD = true;
-                            method.starting = usdValue;
-                        } else {
-                            method.starting = idrValue;
-                        }
-                        if (['gold', 'saham', 'investasi', 'stocks'].some(kw => itemName.toLowerCase().includes(kw))) {
-                            method.isInvestment = true;
-                            if (method.qty === undefined) { method.qty = 0; method.price = 0; }
-                        }
-                    }
-                }
-            }
-        }
-
-        // 3. Process Transactions (Sheet: 'Money_tracker')
-        if (trackerSheetName && (mode === 'all' || mode === 'data')) {
-            const trackerSheet = workbook.Sheets[trackerSheetName];
-            const trackerData = XLSX.utils.sheet_to_json(trackerSheet);
-            const transactions = [];
-
-            trackerData.forEach((row, index) => {
-                const getVal = (obj, keyName) => {
-                    const foundKey = Object.keys(obj).find(k => k.toLowerCase().trim() === keyName.toLowerCase());
-                    return foundKey ? obj[foundKey] : null;
-                };
-
-                const jenis = String(getVal(row, 'Jenis') || '').toLowerCase().trim();
-                const type = (jenis === 'income' || jenis === 'pemasukan' || jenis === 'in') ? 'income' : 'expense';
-                const jumlah = parseFloat(getVal(row, 'Jumlah') || 0);
-
-                if (jumlah > 0) {
-                    transactions.push({
-                        id: Date.now() + index,
-                        description: getVal(row, 'Keterangan') || 'Imported',
-                        amount: jumlah,
-                        category: getVal(row, 'Kategori') || 'Other',
-                        type: type,
-                        paymentMethod: getVal(row, 'Metode Pembayaran') || 'Cash',
-                        date: getVal(row, 'Date') ? new Date(getVal(row, 'Date')).toISOString() : new Date().toISOString()
-                    });
-                }
-            });
-            if (transactions.length > 0) transactionsToSave = transactions;
-        }
-
-        // Execute Save Logic
-        let success = false;
-        if (mode === 'format' && newFormat.categories.length > 0) {
-            currentConfig.categories = newFormat.categories;
-            currentConfig.paymentMethods = newFormat.paymentMethods;
-            saveConfig(currentConfig);
-            success = true;
-        } else if (mode === 'data') {
-            if (transactionsToSave) saveTransactions(transactionsToSave);
-            saveConfig(currentConfig); // Saves adjusted starting balances
-            success = true;
-        } else if (mode === 'all' && (newFormat.categories.length > 0 || transactionsToSave)) {
-            if (newFormat.categories.length > 0) {
-                newFormat.categories.forEach(c => currentConfig.categories.push(c)); // Simplified merge
-                // Better: overwrite if all
-                saveConfig(newFormat);
-            }
-            if (transactionsToSave) saveTransactions(transactionsToSave);
-            success = true;
-        }
-
-        if (success) {
-            populateSelects();
-            updateBalance();
-            displayTransactions();
-            if (!isSilent) alert(`Successfully synced ${mode} from ${file.name}!`);
-        } else if (!isSilent) {
-            alert('Could not find requested data in the file.');
-        }
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-// End of importConfig
+// End of GSheet Logic
 
 
 // Calculate totals including starting balances and periodic summaries
@@ -1482,54 +1318,12 @@ function init() {
 // Start the app when page loads
 document.addEventListener('DOMContentLoaded', init);
 
-// Fetch Keuangan.xlsx from repository (GitHub Pages)
-async function fetchRepoData(isAuto = false, mode = 'all') {
-    if (!isAuto && !confirm(`This will sync ${mode} from the repository. Continue?`)) return;
-
-    // Find the button that triggered this
-    let btn = null;
-    try {
-        if (typeof event !== 'undefined' && event.target) {
-            btn = event.target;
-            if (btn && btn.tagName !== 'BUTTON') btn = btn.closest('button');
-        }
-    } catch (e) { }
-
-    let originalText = mode === 'data' ? '📥 Sync Data Only' : '📋 Sync Format Only';
-    if (btn) {
-        originalText = btn.innerHTML;
-        btn.innerHTML = '⏳ Syncing...';
-        btn.disabled = true;
-    }
-
-    try {
-        const resp = await fetch(`Keuangan.xlsx?t=${Date.now()}`);
-        if (resp.ok) {
-            const blob = await resp.blob();
-            const file = new File([blob], 'Keuangan.xlsx', { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            importConfig(file, isAuto, mode);
-        } else if (!isAuto) {
-            alert('Could not find Keuangan.xlsx in the repository.');
-        }
-    } catch (e) {
-        console.error('Fetch error:', e);
-        if (!isAuto) alert('Error syncing from repository: ' + e.message);
-    } finally {
-        if (btn) {
-            btn.innerHTML = originalText;
-            btn.disabled = false;
-        }
-    }
-}
-
-// Automatically sync from repo if storage is empty
+// Automatically sync from cloud if authorized
 async function autoSyncOnStartup() {
     const transactions = getTransactions();
-    const autoSyncRepo = localStorage.getItem('auto_sync_repo') !== 'false'; // Default to true
-
-    if (transactions.length === 0 && autoSyncRepo) {
-        console.log("Empty data detected. Attempting auto-sync from repository...");
-        await fetchRepoData(true);
+    if (transactions.length === 0) {
+        console.log("Empty data detected. Attempting auto-fetch from GSheet...");
+        await fetchGSheetData('all');
     }
 }
 
