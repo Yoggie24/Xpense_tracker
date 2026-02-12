@@ -1316,7 +1316,7 @@ function init() {
 }
 
 // Start the app when page loads
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => init());
 
 // Automatically sync from cloud if authorized
 async function autoSyncOnStartup() {
@@ -1918,6 +1918,10 @@ init = function () {
     originalInit.apply(this, arguments);
     loadGDriveCreds();
     const autoBackup = localStorage.getItem('gdrive_auto_backup') === 'true';
-    document.getElementById('gdrive-auto-backup').checked = autoBackup;
+    if (document.getElementById('gdrive-auto-backup')) {
+        document.getElementById('gdrive-auto-backup').checked = autoBackup;
+    }
+    // Also trigger auto-sync check on startup
+    autoSyncOnStartup();
 };
 
