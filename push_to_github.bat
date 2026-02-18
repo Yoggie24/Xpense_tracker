@@ -14,11 +14,7 @@ git rm --cached service_account.json 2>nul
 git add .
 
 echo.
-set "msg="
-set /p msg="Enter commit message (press Enter for default): "
-if "!msg!"=="" (
-    set msg=Auto-update: %date% %time%
-)
+set msg=Auto-update: %date% %time%
 
 echo.
 echo [2/3] Committing changes...
@@ -44,4 +40,4 @@ if %errorlevel% equ 0 (
 )
 
 echo.
-pause
+timeout /t 3
