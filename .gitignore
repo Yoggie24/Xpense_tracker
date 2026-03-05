@@ -4,7 +4,9 @@ service_account.json
 credentials.json
 config.json
 Yoggie.json
-*.json
+scripts/service_account.json
+scripts/config.json
+# JANGAN tambahkan *.json di sini - file data seperti config-gsheet.json perlu di-push!
 .env
 # --- Folder Python ---
 __pycache__/

@@ -6,41 +6,43 @@ echo   🚀 MONEY TRACKER - GITHUB AUTOMATOR
 echo ========================================
 echo.
 
-echo [1/3] Staging changes...
-:: Ensure sensitive files are NOT tracked if they were accidentally added
+echo [1/4] Removing sensitive cached files...
 git rm --cached Yoggie.json 2>nul
 git rm --cached credentials.json 2>nul
 git rm --cached service_account.json 2>nul
 git rm --cached scripts/service_account.json 2>nul
+git rm --cached scripts/config.json 2>nul
+git rm --cached config.json 2>nul
+
+echo [2/4] Staging all changes...
 git add .
+echo ✔ Files staged.
 
 echo.
+echo [3/4] Committing changes...
 set "msg=Auto-update: %date% %time%"
-
-echo.
-echo [2/3] Committing changes...
 git commit -m "%msg%"
 if %errorlevel% neq 0 (
-    echo. 
-    echo ℹ️  No new changes to commit - pushing existing commits...
+    echo ℹ️  Nothing new to commit - will push existing commits.
 )
 
 echo.
-echo [3/3] Force pushing to GitHub (your local code wins)...
+echo [4/4] Pushing to GitHub (local code overwrites remote)...
 git push --force-with-lease origin main
+set PUSH_RESULT=%errorlevel%
 
-if %errorlevel% neq 0 (
-    echo.
-    echo ⚠️  Force-with-lease failed (remote changed). Forcing push anyway...
+if %PUSH_RESULT% neq 0 (
+    echo ⚠️  Retrying with force push...
     git push --force origin main
+    set PUSH_RESULT=%errorlevel%
 )
 
-if %errorlevel% equ 0 (
-    echo.
-    echo ✅ SUCCESS! Your local code is now on GitHub.
+echo.
+if %PUSH_RESULT% equ 0 (
+    echo ✅ SUCCESS! Your local code is now live on GitHub.
 ) else (
-    echo.
-    echo ❌ STILL FAILING: Please check your internet or GitHub login.
+    echo ❌ PUSH FAILED. Check your internet connection or GitHub login.
+    echo    Tip: Run  git credential-manager-core erase  to reset login.
 )
 
 echo.
