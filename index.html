@@ -284,24 +284,18 @@
 
                 <hr class="settings-divider">
 
-                <!-- Cloud Sync -->
+                <!-- Spreadsheet Sync -->
                 <div class="settings-section">
-                    <h3>☁️ Cloud Sync</h3>
+                    <h3>📊 Spreadsheet Sync</h3>
+                    <p class="settings-desc" style="margin-bottom: 10px;">Send transactions directly to your Google Sheet</p>
                     <div class="gdrive-creds">
-                        <div id="advanced-creds" style="display: none;">
-                            <input type="text" id="gdrive-client-id" placeholder="Google Client ID" class="settings-input">
-                            <input type="password" id="gdrive-api-key" placeholder="Google API Key" class="settings-input">
-                        </div>
-                        <input type="text" id="gdrive-sheet-id" placeholder="Google Spreadsheet ID" class="settings-input">
-                        <div style="display: flex; gap: 8px; margin-top: 8px;">
-                            <button class="save-creds-btn" onclick="saveGDriveCreds()" style="flex: 1;">Save</button>
-                            <button class="sync-btn" onclick="toggleAdvanced()" style="width: auto; padding: 0 10px;">⚙️</button>
-                        </div>
+                        <input type="password" id="gas-webhook-url" placeholder="Paste Google Apps Script URL here" class="settings-input">
+                        <button class="save-creds-btn" onclick="saveGASUrl()" style="margin-top: 8px;">Save Webhook URL</button>
                     </div>
-                    <button id="refresh-cloud-btn" class="upload-btn" onclick="fetchGSheetData('all')" style="background: var(--bca-blue); color: white; margin-top: 10px;">
-                        🔄 Refresh Cloud Data
+                    <button id="sync-to-sheet-btn" class="upload-btn" onclick="syncToSpreadsheet()" style="background: var(--success, #10b981); color: white; margin-top: 10px;">
+                        🚀 Push to Spreadsheet
                     </button>
-                    <div id="gdrive-status" class="sync-status" style="margin-top: 8px;">Status: Initializing...</div>
+                    <div id="spreadsheet-status" class="sync-status" style="margin-top: 8px;">Status: Ready</div>
                 </div>
 
                 <hr class="settings-divider">
