@@ -24,7 +24,7 @@ const DEFAULT_CONFIG = {
         { "name": "Seabank", "icon": "", "starting": 3283419.0 },
         { "name": "BCA", "icon": "", "starting": 192698.0 },
         { "name": "Mandiri", "icon": "", "starting": 21550.0 },
-        { "name": "Jenius", "icon": "", "isUSD": true, "starting": 705.0 },
+        { "name": "Jenius", "icon": "", "starting": 0 },
         { "name": "BCA Vallas", "icon": "", "isUSD": true, "starting": 5.0 },
         { "name": "Gold", "icon": "", "starting": 0, "isInvestment": true },
         { "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true },
@@ -102,12 +102,18 @@ function getConfig() {
     config.paymentMethods.forEach(m => {
         const name = m.name.toLowerCase();
 
-        // Fix USD Assets
-        if (name.includes('jenius') || name.includes('vallas')) {
+        // Fix USD Assets (Jenius is now IDR, only BCA Vallas remains USD)
+        if (name.includes('vallas')) {
             if (!m.isUSD) {
                 m.isUSD = true;
                 changed = true;
             }
+        }
+
+        // MIGRATION: Remove isUSD flag from Jenius (now tracked in IDR)
+        if (name.includes('jenius') && m.isUSD) {
+            delete m.isUSD;
+            changed = true;
         }
 
         // Fix Investment Assets
@@ -1105,6 +1111,27 @@ function clearAllTransactions() {
         localStorage.removeItem('transactions');
         updateBalance();
         displayTransactions();
+    }
+}
+
+// Reset everything: clear all transactions AND reset all starting balances to 0
+function resetAll() {
+    if (confirm('⚠️ RESET ALL?\n\nThis will:\n- Delete ALL transactions\n- Reset ALL asset starting balances to 0\n\nThis action CANNOT be undone!')) {
+        // Clear transactions
+        localStorage.removeItem('transactions');
+
+        // Reset all starting balances to 0 in config
+        const config = getConfig();
+        config.paymentMethods.forEach(m => {
+            m.starting = 0;
+            if (m.qty !== undefined) m.qty = 0;
+            if (m.price !== undefined) m.price = 0;
+        });
+        saveConfig(config);
+
+        updateBalance();
+        displayTransactions();
+        alert('✅ All data has been reset.');
     }
 }
 
