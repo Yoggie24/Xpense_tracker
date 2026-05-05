@@ -1855,7 +1855,7 @@ async function syncToSpreadsheet() {
     } catch (err) {
         console.error("Spreadsheet Sync Error:", err);
         if (status) {
-            status.textContent = `❌ Sync failed`;
+            status.textContent = `❌ Sync failed: ${err.message}`;
             status.style.color = '#ef4444';
         }
         alert("Gagal Sinkronisasi: " + err.message);
