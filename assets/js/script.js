@@ -25,6 +25,7 @@ const DEFAULT_CONFIG = {
         { "name": "BCA", "icon": "", "starting": 192698.0 },
         { "name": "Mandiri", "icon": "", "starting": 21550.0 },
         { "name": "Jenius", "icon": "", "starting": 0 },
+        { "name": "Jenius USD", "icon": "", "isUSD": true, "starting": 0 },
         { "name": "BCA Vallas", "icon": "", "isUSD": true, "starting": 5.0 },
         { "name": "Gold", "icon": "", "starting": 0, "isInvestment": true },
         { "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true },
@@ -102,18 +103,12 @@ function getConfig() {
     config.paymentMethods.forEach(m => {
         const name = m.name.toLowerCase();
 
-        // Fix USD Assets (Jenius is now IDR, only BCA Vallas remains USD)
-        if (name.includes('vallas')) {
+        // Fix USD Assets (BCA Vallas and Jenius USD are USD)
+        if (name.includes('vallas') || name === 'jenius usd') {
             if (!m.isUSD) {
                 m.isUSD = true;
                 changed = true;
             }
-        }
-
-        // MIGRATION: Remove isUSD flag from Jenius (now tracked in IDR)
-        if (name.includes('jenius') && m.isUSD) {
-            delete m.isUSD;
-            changed = true;
         }
 
         // Fix Investment Assets
@@ -156,6 +151,14 @@ function getConfig() {
     // Ensure Stocks row exists if missing (it's a new default)
     if (!config.paymentMethods.find(m => m.name === 'Stocks')) {
         config.paymentMethods.push({ "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true, "qty": 0, "price": 0 });
+        changed = true;
+    }
+
+    // Ensure Jenius USD exists (user has both IDR and USD in Jenius)
+    if (!config.paymentMethods.find(m => m.name === 'Jenius USD')) {
+        const jeniusIndex = config.paymentMethods.findIndex(m => m.name === 'Jenius');
+        const insertAt = jeniusIndex >= 0 ? jeniusIndex + 1 : config.paymentMethods.length;
+        config.paymentMethods.splice(insertAt, 0, { "name": "Jenius USD", "icon": "", "isUSD": true, "starting": 0 });
         changed = true;
     }
 
