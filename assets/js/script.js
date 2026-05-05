@@ -1,1822 +1,554 @@
 // Default configuration for the Money Tracker app
 const DEFAULT_CONFIG = {
     "categories": [
-        { "name": "Makan", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Minuman", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Sedekah", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Fashion", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Gold", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Transportasi", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Other", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Rokok", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Pindah uang", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Kesehatan", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Social", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Jajan", "icon": "", "starting": 0, "type": "Outcome" },
-        { "name": "Gaji", "icon": "", "starting": 0, "type": "Income" },
-        { "name": "Bonus", "icon": "", "starting": 0, "type": "Income" },
-        { "name": "Sisa", "icon": "", "starting": 0, "type": "Income" },
-        { "name": "Other", "icon": "", "starting": 0, "type": "Income" }
+        "Makan", "Minuman", "Sedekah", "Fashion", "Gold", "Transportasi", "Rokok", "Pindah uang", "Kesehatan", "Social", "Jajan", "Gaji", "Bonus", "Sisa", "Transfer"
     ],
     "paymentMethods": [
-        { "name": "Shopeepay", "icon": "", "starting": 0 },
-        { "name": "Gopay", "icon": "", "starting": 0 },
-        { "name": "Seabank", "icon": "", "starting": 3283419.0 },
-        { "name": "BCA", "icon": "", "starting": 192698.0 },
-        { "name": "Mandiri", "icon": "", "starting": 21550.0 },
-        { "name": "Jenius", "icon": "", "starting": 0 },
-        { "name": "Jenius USD", "icon": "", "isUSD": true, "starting": 0 },
-        { "name": "BCA Vallas", "icon": "", "isUSD": true, "starting": 5.0 },
-        { "name": "Gold", "icon": "", "starting": 0, "isInvestment": true },
-        { "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true },
-        { "name": "Cash", "icon": "", "starting": 0.0 }
+        "Shopeepay", "Gopay", "Seabank", "BCA", "Mandiri", "Jenius", "Jenius USD", "BCA Vallas", "Gold", "Stocks", "Cash"
     ]
 };
 
-let dailyChartInstance = null;
-let incomePieChartInstance = null;
-let outcomePieChartInstance = null;
-let USD_KURS = 16000; // Default Kurs USD
-let TREND_RANGE = 7; // Default chart range (7 days)
+let USD_KURS = 16000;
+let masterData = [];
+let itemToDelete = null;
+let sortState = { k: 'date', o: 'desc' };
+let calendarDate = new Date();
+let isEditing = false;
+let editItem = null;
 
-// Google Drive Client
-let tokenClient;
-let gapiInited = false;
-let gisInited = false;
-let syncOutbox = JSON.parse(localStorage.getItem('gsheet_outbox') || '[]');
-let isProcessingQueue = false;
-let authInterval = null;
+document.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('entry-date').valueAsDate = new Date();
+    loadSystemConfig();
+    fetchData();
 
-// Get/Load Kurs from storage
-function getKurs() {
-    const savedKurs = localStorage.getItem('usd_kurs');
-    return savedKurs ? parseFloat(savedKurs) : 16000;
+    // Tab Navigation Logic
+    const deskNavBtns = document.querySelectorAll('.desk-nav-btn');
+    const mobNavBtns = document.querySelectorAll('.mob-nav-btn');
+
+    function updateTabUI(viewId) {
+        document.querySelectorAll('.tab-view').forEach(v => v.classList.add('hidden'));
+        document.getElementById(viewId).classList.remove('hidden');
+
+        deskNavBtns.forEach(btn => {
+            if (btn.dataset.target === viewId) {
+                btn.classList.add('desk-nav-active');
+                btn.classList.remove('text-slate-400');
+            } else {
+                btn.classList.remove('desk-nav-active');
+                btn.classList.add('text-slate-400');
+            }
+        });
+
+        mobNavBtns.forEach(btn => {
+            if (btn.dataset.target === viewId) {
+                btn.classList.add('mob-nav-active');
+                btn.classList.remove('text-slate-500');
+            } else {
+                btn.classList.remove('mob-nav-active');
+                btn.classList.add('text-slate-500');
+            }
+        });
+    }
+
+    deskNavBtns.forEach(b => b.addEventListener('click', e => updateTabUI(e.currentTarget.dataset.target)));
+    mobNavBtns.forEach(b => b.addEventListener('click', e => updateTabUI(e.currentTarget.dataset.target)));
+    window.switchTab = updateTabUI;
+
+    window.applyDatePreset = (type) => {
+        const now = new Date();
+        let start, end;
+        if (type === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1); end = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
+        else if (type === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1); end = new Date(now.getFullYear(), now.getMonth(), 0); }
+        else if (type === 'last30') { end = new Date(); start = new Date(); start.setDate(now.getDate() - 30); }
+        else if (type === 'thisYear') { start = new Date(now.getFullYear(), 0, 1); end = new Date(now.getFullYear(), 11, 31); }
+        else { document.getElementById('filter-start').value = ''; document.getElementById('filter-end').value = ''; renderAll(); document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('preset-active')); return; }
+        document.getElementById('filter-start').value = start.toISOString().split('T')[0]; document.getElementById('filter-end').value = end.toISOString().split('T')[0]; renderAll();
+        document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('preset-active')); if (event) event.target.classList.add('preset-active');
+    };
+
+    const typeRadios = document.getElementsByName('entry-type');
+    const segmentIndicator = document.getElementById('segment-indicator');
+
+    function updateSegmentIndicator(val) {
+        if (val === 'expense') { segmentIndicator.style.transform = 'translateX(0%)'; segmentIndicator.className = "absolute top-1 bottom-1 left-1 rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] border border-rose-500/20 bg-rose-500/10 w-[calc(33.33%-4px)]"; }
+        else if (val === 'income') { segmentIndicator.style.transform = 'translateX(100%)'; segmentIndicator.className = "absolute top-1 bottom-1 left-1 rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] border border-emerald-500/20 bg-emerald-500/10 w-[calc(33.33%-4px)]"; }
+        else if (val === 'transfer') { segmentIndicator.style.transform = 'translateX(200%)'; segmentIndicator.className = "absolute top-1 bottom-1 left-1 rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] border border-blue-500/20 bg-blue-500/10 w-[calc(33.33%-4px)]"; }
+    }
+
+    typeRadios.forEach(r => r.addEventListener('change', () => {
+        const val = document.querySelector('input[name="entry-type"]:checked').value;
+        updateSegmentIndicator(val);
+        updateUIForType(val);
+    }));
+
+    function updateUIForType(val) {
+        const tg = document.getElementById('transfer-target-group'), cg = document.getElementById('category-group'), ls = document.getElementById('lbl-source-acc'), btn = document.getElementById('submit-btn');
+        if (val === 'transfer') {
+            tg.classList.remove('hidden'); cg.classList.add('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-600"></i> FROM / SOURCE';
+            btn.innerHTML = `<span>${isEditing ? "Update Transfer" : "Process Transfer"}</span> <i class="fas fa-exchange-alt"></i>`;
+            btn.className = "w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.3)] hover:shadow-[0_8px_25px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
+        } else {
+            tg.classList.add('hidden'); cg.classList.remove('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-600"></i> FROM / ACCOUNT';
+            btn.innerHTML = `<span>${isEditing ? "Update Transaction" : "Save Transaction"}</span> <i class="fas fa-check"></i>`;
+            if (val === 'income') btn.className = isEditing ? "w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4" : "w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
+            else btn.className = isEditing ? "w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4" : "w-full bg-gradient-to-r from-rose-500 to-rose-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(225,29,72,0.3)] hover:shadow-[0_8px_25px_rgba(225,29,72,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
+        }
+    }
+    document.getElementById('entry-cat').addEventListener('change', e => document.getElementById('entry-cat-other').classList.toggle('hidden', e.target.value !== 'Other'));
+
+    document.getElementById('add-entry-form').addEventListener('submit', e => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn'); const origTxt = btn.innerHTML; btn.innerHTML = '<div class="loader w-5 h-5 border-2 border-white border-t-transparent"></div>'; btn.disabled = true;
+        const type = document.querySelector('input[name="entry-type"]:checked').value;
+        const date = document.getElementById('entry-date').value;
+        const desc = document.getElementById('entry-desc').value;
+        
+        let txType = type === 'income' ? 'income' : 'expense';
+        let cat = document.getElementById('entry-cat').value; 
+        if (cat === 'Other') cat = document.getElementById('entry-cat-other').value;
+        if (type === 'transfer') cat = 'Transfer';
+
+        const accSource = document.getElementById('entry-acc-source').value;
+        const currSource = document.getElementById('entry-curr-source').value;
+        const amtSource = Math.abs(parseFloat(document.getElementById('entry-amt-source').value));
+
+        let txs = getTransactions();
+
+        if (isEditing) {
+            const idx = txs.findIndex(t => t.id == editItem.id);
+            if (idx !== -1) {
+                txs[idx] = {
+                    id: editItem.id,
+                    date: date,
+                    description: desc,
+                    category: cat,
+                    paymentMethod: accSource,
+                    type: txType,
+                    amount: amtSource,
+                    currency: currSource
+                };
+            }
+        } else {
+            if (type === 'transfer') {
+                const accTarget = document.getElementById('entry-acc-target').value;
+                const currTarget = document.getElementById('entry-curr-target').value;
+                const amtTargetInput = document.getElementById('entry-amt-target').value;
+                const amtTarget = amtTargetInput ? Math.abs(parseFloat(amtTargetInput)) : amtSource;
+
+                if (accSource === accTarget && currSource === currTarget) {
+                    showToast("Source and Target are identical!", 'error');
+                    btn.innerHTML = origTxt; btn.disabled = false; return;
+                }
+
+                // Create expense from source
+                txs.push({ id: Date.now().toString() + "-out", date, description: desc + " (Transfer Out)", category: cat, paymentMethod: accSource, type: 'expense', amount: amtSource, currency: currSource });
+                // Create income to target
+                txs.push({ id: Date.now().toString() + "-in", date, description: desc + " (Transfer In)", category: cat, paymentMethod: accTarget, type: 'income', amount: amtTarget, currency: currTarget });
+            } else {
+                txs.push({
+                    id: Date.now().toString(),
+                    date: date,
+                    description: desc,
+                    category: cat,
+                    paymentMethod: accSource,
+                    type: txType,
+                    amount: amtSource,
+                    currency: currSource
+                });
+            }
+        }
+
+        saveTransactions(txs);
+        fetchData();
+        showToast("Transaction saved", "success");
+        resetForm();
+        btn.innerHTML = origTxt; btn.disabled = false;
+        
+        // Auto-sync after adding
+        syncToSpreadsheet();
+    });
+
+    document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
+
+    document.addEventListener('click', e => {
+        const btnEdit = e.target.closest('.edit-btn'), btnDel = e.target.closest('.del-btn');
+
+        if (btnDel) {
+            itemToDelete = JSON.parse(btnDel.dataset.item);
+            document.getElementById('del-item-preview').innerHTML = `<div class="font-bold text-white text-base mb-1">${itemToDelete.desc}</div><div class="${itemToDelete.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-xl font-bold">${fmt(itemToDelete.amt, itemToDelete.curr)}</div><div class="text-[10px] uppercase font-bold tracking-wider text-slate-500 mt-3">${itemToDelete.date} • ${itemToDelete.acc}</div>`;
+            document.getElementById('delete-modal').classList.remove('hidden');
+        }
+
+        if (btnEdit) {
+            const item = JSON.parse(btnEdit.dataset.item);
+            if (item.cat === 'Transfer') { showToast("Please delete and recreate transfer.", 'error'); return; }
+            isEditing = true; editItem = item;
+            document.getElementById('form-title').innerHTML = '<div class="w-10 h-10 rounded-xl bg-orange-500/20 flex items-center justify-center text-orange-400 border border-orange-500/30"><i class="fas fa-pen"></i></div> Edit Entry'; document.getElementById('cancel-edit-btn').classList.remove('hidden');
+
+            updateTabUI('view-add');
+            document.querySelector(`input[name="entry-type"][value="${item.type}"]`).checked = true;
+            updateSegmentIndicator(item.type);
+            updateUIForType(item.type);
+
+            document.getElementById('entry-desc').value = item.desc;
+            document.getElementById('entry-date').value = item.date;
+
+            const catSelect = document.getElementById('entry-cat');
+            if ([...catSelect.options].map(o => o.value).includes(item.cat)) catSelect.value = item.cat;
+            else { catSelect.value = 'Other'; document.getElementById('entry-cat-other').classList.remove('hidden'); document.getElementById('entry-cat-other').value = item.cat; }
+
+            document.getElementById('entry-curr-source').value = item.curr;
+            document.getElementById('entry-acc-source').value = item.acc;
+            document.getElementById('entry-amt-source').value = item.amt;
+        }
+    });
+
+    document.getElementById('del-cancel').addEventListener('click', () => document.getElementById('delete-modal').classList.add('hidden'));
+    document.getElementById('del-confirm').addEventListener('click', () => {
+        let txs = getTransactions();
+        txs = txs.filter(t => t.id != itemToDelete.id);
+        saveTransactions(txs);
+        document.getElementById('delete-modal').classList.add('hidden');
+        showToast("Deleted successfully", 'success');
+        fetchData();
+        syncToSpreadsheet();
+    });
+
+    ['filter-start', 'filter-end', 'filter-cat', 'filter-acc', 'filter-search'].forEach(i => document.getElementById(i).addEventListener('input', renderAll));
+    document.getElementById('chart-currency-toggle').addEventListener('change', () => updateChart(masterData));
+    document.querySelectorAll('.sortable').forEach(s => s.addEventListener('click', e => { sortState.k = e.target.dataset.sort; sortState.o = sortState.o === 'asc' ? 'desc' : 'asc'; renderAll(); }));
+    
+    document.getElementById('settings-btn').addEventListener('click', () => {
+        document.getElementById('webhook-url-input').value = getGASUrl();
+        document.getElementById('settings-modal').classList.remove('hidden');
+    });
+    document.getElementById('settings-close').addEventListener('click', () => document.getElementById('settings-modal').classList.add('hidden'));
+    
+    // Add Google sheets listener
+    document.getElementById('webhook-url-input').addEventListener('input', (e) => {
+        localStorage.setItem('gas_webhook_url', e.target.value.trim());
+    });
+    
+    document.getElementById('push-data-btn').addEventListener('click', syncToSpreadsheet);
+    document.getElementById('pull-data-btn').addEventListener('click', loadFromSpreadsheet);
+
+    // Initial setups
+    setTimeout(() => {
+        document.getElementById('init-loader').classList.add('hidden');
+    }, 500);
+});
+
+function loadSystemConfig() {
+    const selAccS = document.getElementById('entry-acc-source');
+    const selAccT = document.getElementById('entry-acc-target');
+    const selCat = document.getElementById('entry-cat');
+    
+    const accs = DEFAULT_CONFIG.paymentMethods;
+    selAccS.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
+    selAccT.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
+    
+    const cats = DEFAULT_CONFIG.categories;
+    selCat.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    selCat.innerHTML += '<option value="Other">Other...</option>';
 }
 
-// Save Kurs to storage
-function saveKurs(val) {
-    localStorage.setItem('usd_kurs', val);
-    USD_KURS = val;
-    updateBalance();
-}
-
-// Get all transactions from browser storage
 function getTransactions() {
     const transactions = localStorage.getItem('transactions');
     return transactions ? JSON.parse(transactions) : [];
 }
 
-// Save transactions to browser storage
 function saveTransactions(transactions) {
     localStorage.setItem('transactions', JSON.stringify(transactions));
 }
 
-// Format number to Indonesian Rupiah
-function formatMoney(amount, currency = 'IDR') {
-    if (currency === 'USD') {
-        return '$ ' + amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    }
-    return 'Rp ' + amount.toLocaleString('id-ID');
+function getGASUrl() {
+    return localStorage.getItem('gas_webhook_url') || "";
 }
 
-// Thousand separator helpers for input fields
-function addThousandSeparator(value) {
-    // Strip non-digits, then format with dots
-    const num = String(value).replace(/[^0-9]/g, '');
-    if (!num) return '';
-    return parseInt(num, 10).toLocaleString('id-ID');
+function resetForm() {
+    document.getElementById('add-entry-form').reset(); document.getElementById('entry-date').valueAsDate = new Date();
+    isEditing = false; editItem = null; document.getElementById('form-title').innerHTML = '<div class="w-10 h-10 rounded-xl bg-theme-primary/20 flex items-center justify-center text-theme-primaryLight border border-theme-primary/30"><i class="fas fa-plus"></i></div> New Entry'; document.getElementById('cancel-edit-btn').classList.add('hidden');
+    document.querySelector('input[name="entry-type"][value="expense"]').checked = true; document.querySelector('input[name="entry-type"][value="expense"]').dispatchEvent(new Event('change'));
 }
 
-function parseFormattedNumber(value) {
-    // Remove dots (id-ID thousand separator) and parse
-    return parseFloat(String(value).replace(/\./g, '').replace(/,/g, '.')) || 0;
-}
-
-// Get/Load configuration
-// Get/Load configuration
-function getConfig() {
-    const configStr = localStorage.getItem('moneyTrackerConfig');
-    let config = configStr ? JSON.parse(configStr) : JSON.parse(JSON.stringify(DEFAULT_CONFIG));
-
-    // MIGRATION: Ensure correct flags for specific assets
-    let changed = false;
-    config.paymentMethods.forEach(m => {
-        const name = m.name.toLowerCase();
-
-        // Fix USD Assets (BCA Vallas and Jenius USD are USD)
-        if (name.includes('vallas') || name === 'jenius usd') {
-            if (!m.isUSD) {
-                m.isUSD = true;
-                changed = true;
-            }
-        }
-
-        // Fix Investment Assets
-        if (name.includes('investasi') || name.includes('gold') || name.includes('saham') || name.includes('stock') || name.includes('reksadana')) {
-            if (!m.isInvestment) {
-                m.isInvestment = true;
-                changed = true;
-            }
-            // MIGRATION: Rename "Investasi" -> "Gold", "Saham" -> "Stocks"
-            if (m.name === 'Investasi') {
-                m.name = 'Gold';
-                changed = true;
-            }
-            if (m.name === 'Saham') {
-                m.name = 'Stocks';
-                changed = true;
-            }
-            // Ensure Qty/Price properties exist for Gold/Stocks
-            if ((name.includes('gold') || name.includes('stock') || name.includes('saham')) && m.qty === undefined) {
-                m.qty = 0;
-                m.price = 0;
-                changed = true;
-            }
-        }
-
-        // MIGRATION: Stripping icons for minimalist look
-        if (m.icon !== "") {
-            m.icon = "";
-            changed = true;
-        }
-    });
-
-    config.categories.forEach(c => {
-        if (c.icon !== "") {
-            c.icon = "";
-            changed = true;
-        }
-    });
-
-    // Ensure Stocks row exists if missing (it's a new default)
-    if (!config.paymentMethods.find(m => m.name === 'Stocks')) {
-        config.paymentMethods.push({ "name": "Stocks", "icon": "", "starting": 0, "isInvestment": true, "qty": 0, "price": 0 });
-        changed = true;
-    }
-
-    // Ensure Jenius USD exists (user has both IDR and USD in Jenius)
-    if (!config.paymentMethods.find(m => m.name === 'Jenius USD')) {
-        const jeniusIndex = config.paymentMethods.findIndex(m => m.name === 'Jenius');
-        const insertAt = jeniusIndex >= 0 ? jeniusIndex + 1 : config.paymentMethods.length;
-        config.paymentMethods.splice(insertAt, 0, { "name": "Jenius USD", "icon": "", "isUSD": true, "starting": 0 });
-        changed = true;
-    }
-
-    // Ensure new Outcome categories exist
-    ['Social', 'Jajan'].forEach(newCat => {
-        if (!config.categories.find(c => c.name === newCat && c.type === 'Outcome')) {
-            config.categories.push({ "name": newCat, "icon": "", "starting": 0, "type": "Outcome" });
-            changed = true;
-        }
-    });
-
-    if (changed) {
-        saveConfig(config);
-    }
-
-    // MIGRATION: Update transactions to use "Gold"/"Stocks" instead of "Investasi"/"Saham"
-    const transactions = getTransactions();
-    let transChanged = false;
-    transactions.forEach(t => {
-        if (t.paymentMethod === 'Investasi') {
-            t.paymentMethod = 'Gold';
-            transChanged = true;
-        }
-        if (t.paymentMethod === 'Saham') {
-            t.paymentMethod = 'Stocks';
-            transChanged = true;
-        }
-        if (t.category === 'Investasi') {
-            t.category = 'Gold';
-            transChanged = true;
-        }
-        if (t.category === 'Saham') {
-            t.category = 'Stocks';
-            transChanged = true;
-        }
-    });
-    if (transChanged) {
-        saveTransactions(transactions);
-    }
-
-    return config;
-}
-
-// Save configuration
-function saveConfig(config) {
-    localStorage.setItem('moneyTrackerConfig', JSON.stringify(config));
-    populateSelects();
-}
-
-// Populate select elements based on config
-function populateSelects() {
-    try {
-        const config = getConfig();
-        const categorySelect = document.getElementById('category');
-        const paymentSelect = document.getElementById('paymentMethod');
-        const typeInput = document.getElementById('type');
-
-        if (!categorySelect || !paymentSelect || !typeInput) return;
-
-        const type = typeInput.value; // 'expense' or 'income'
-        // Normalize type matching to be case-insensitive and robust
-        const targetType = type.toLowerCase() === 'expense' ? 'outcome' : 'income';
-
-        // Clear existing options (except placeholder)
-        categorySelect.innerHTML = '<option value="">Select Category</option>';
-        paymentSelect.innerHTML = '<option value="">Select Payment Method</option>';
-
-        // Filter categories by type (case-insensitive)
-        const filteredCategories = config.categories.filter(cat => {
-            if (!cat.type) return true; // Show if type is missing
-            return cat.type.toLowerCase() === targetType;
+function fetchData() {
+    const rawTxs = getTransactions();
+    masterData = [];
+    rawTxs.forEach(t => {
+        masterData.push({
+            id: t.id,
+            type: t.type,
+            date: t.date,
+            desc: t.description,
+            cat: t.category,
+            acc: t.paymentMethod,
+            curr: t.currency || 'IDR',
+            amt: parseFloat(t.amount)
         });
+    });
 
-        filteredCategories.forEach(cat => {
-            const option = document.createElement('option');
-            option.value = cat.name;
-            option.textContent = `${cat.icon || '🛍️'} ${cat.name}`;
-            categorySelect.appendChild(option);
-        });
-
-        config.paymentMethods.forEach(method => {
-            const option = document.createElement('option');
-            option.value = method.name;
-            option.textContent = `${method.icon || '🏦'} ${method.name}`;
-            paymentSelect.appendChild(option);
-        });
-    } catch (error) {
-        console.error("Error populating selects:", error);
-    }
+    const cats = [...new Set(masterData.map(d => d.cat))].sort(), accs = [...new Set(masterData.map(d => d.acc))].sort();
+    document.getElementById('filter-cat').innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option>${c}</option>`).join('');
+    document.getElementById('filter-acc').innerHTML = '<option value="all">All Accounts</option>' + accs.map(a => `<option>${a}</option>`).join('');
+    renderAll();
 }
 
-// Export config to CSV
-function exportConfig() {
-    const config = getConfig();
-    let csv = 'Type,Name,Icon\n';
+function fmt(n, c) { return new Intl.NumberFormat('en-US', { style: 'currency', currency: c, minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(n); }
 
-    config.categories.forEach(c => csv += `Category,${c.name},${c.icon}\n`);
-    config.paymentMethods.forEach(m => csv += `PaymentMethod,${m.name},${m.icon}\n`);
-
-    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'money-tracker-config.csv');
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+function showToast(m, type) {
+    const t = document.getElementById('toast');
+    t.className = `fixed top-5 left-1/2 transform -translate-x-1/2 glass text-white px-6 py-4 rounded-2xl shadow-[0_20px_40px_rgba(0,0,0,0.5)] border z-[90] flex items-center gap-3 min-w-[250px] justify-center transition-all duration-300 translate-y-0 opacity-100 ${type === 'error' ? 'border-rose-500/30 bg-rose-950/80' : 'border-emerald-500/30 bg-emerald-950/80'}`;
+    t.innerHTML = `${type === 'error' ? '<div class="w-8 h-8 rounded-full bg-rose-500/20 flex items-center justify-center text-rose-400"><i class="fas fa-exclamation-circle text-lg"></i></div>' : '<div class="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center text-emerald-400"><i class="fas fa-check text-lg"></i></div>'} <span class="font-medium text-sm tracking-wide">${m}</span>`;
+    t.classList.remove('hidden');
+    setTimeout(() => { t.classList.add('translate-y-[-100px]', 'opacity-0'); setTimeout(() => t.classList.add('hidden'), 300); }, 3000);
 }
 
-// End of GSheet Logic
+window.toggleCurrency = (id, usdVal) => {
+    const el = document.getElementById(id);
+    if (el.textContent.includes('$')) { const idrVal = usdVal * USD_KURS; el.textContent = fmt(idrVal, 'IDR'); el.classList.add('text-yellow-400'); } else { el.textContent = fmt(usdVal, 'USD'); el.classList.remove('text-yellow-400'); }
+};
 
-
-// Calculate totals including starting balances and periodic summaries
-function calculateTotals() {
-    const transactions = getTransactions();
-    const config = getConfig();
-
-    let totalIncome = 0;
-    let totalExpense = 0;
-    const methodTotals = {};
-
-    // Periodic summaries
-    const today = new Date();
-    const startOfWeek = new Date(today);
-    startOfWeek.setDate(today.getDate() - today.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
-
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-    let weeklyOutcome = 0;
-    let monthlyOutcome = 0;
-
-    // Initialize method totals with starting balances or Qty*Price
-    config.paymentMethods.forEach(method => {
-        if (method.isInvestment && method.qty !== undefined) {
-            methodTotals[method.name] = (method.qty || 0) * (method.price || 0);
+function renderAll() {
+    const bals = {}; let incIDR = 0, expIDR = 0, incUSD = 0, expUSD = 0;
+    masterData.forEach(d => {
+        const k = `${d.acc}-${d.curr}`;
+        if (!bals[k]) bals[k] = { n: d.acc, c: d.curr, v: 0 };
+        if (d.type === 'income') {
+            bals[k].v += d.amt;
+            if (d.cat !== 'Transfer' && d.cat !== 'Initial Balance') { if (d.curr === 'IDR') incIDR += d.amt; else incUSD += d.amt; }
         } else {
-            methodTotals[method.name] = method.starting || 0;
+            bals[k].v -= d.amt;
+            if (d.cat !== 'Transfer') { if (d.curr === 'IDR') expIDR += d.amt; else expUSD += d.amt; }
         }
     });
 
-    transactions.forEach(transaction => {
-        const amount = transaction.amount;
-        const method = transaction.paymentMethod;
-        const transDate = new Date(transaction.date);
-
-        if (methodTotals[method] === undefined) {
-            methodTotals[method] = 0;
-        }
-
-        // For Qty-based assets, transactions act as IDR value adjustments if they exist, 
-        // but usually we rely on Qty*Price. Let's make it so transactions still apply 
-        // unless it's specifically a Qty asset where we might want to track Qty change?
-        // To keep it simple, we'll let transactions apply to the "Total" value.
-        // However, if it's Gold/Saham, the user wants to see Qty and Price.
-
-        if (transaction.type === 'income') {
-            totalIncome += amount;
-            methodTotals[method] += amount;
-        } else {
-            totalExpense += amount;
-            methodTotals[method] -= amount;
-
-            if (transDate >= startOfWeek) weeklyOutcome += amount;
-            if (transDate >= startOfMonth) monthlyOutcome += amount;
-        }
-    });
-
-    // Total balance is sum of all method current totals
-    const usdMethods = config.paymentMethods.filter(m => m.isUSD).map(m => m.name);
-    const balance = Object.keys(methodTotals).reduce((sum, name) => {
-        const val = methodTotals[name];
-        const methodConfig = config.paymentMethods.find(m => m.name === name);
-        if (methodConfig && methodConfig.isUSD) {
-            return sum + (val * getKurs());
-        }
-        return sum + val;
-    }, 0);
-
-    return { totalIncome, totalExpense, balance, methodTotals, weeklyOutcome, monthlyOutcome };
-}
-
-// Update balance display and summary table
-function updateBalance() {
-    const { totalIncome, totalExpense, balance, methodTotals, weeklyOutcome, monthlyOutcome } = calculateTotals();
-    const config = getConfig();
-
-    const totalBalanceEl = document.getElementById('totalBalance');
-    const totalIncomeEl = document.getElementById('totalIncome');
-    const totalExpenseEl = document.getElementById('totalExpense');
-
-    if (totalBalanceEl) totalBalanceEl.textContent = formatMoney(balance);
-    if (totalIncomeEl) totalIncomeEl.textContent = formatMoney(totalIncome);
-    if (totalExpenseEl) totalExpenseEl.textContent = formatMoney(totalExpense);
-
-    // Update Periodic Summary in UI
-    const weeklyEl = document.getElementById('weeklyOutcome');
-    const monthlyEl = document.getElementById('monthlyOutcome');
-    if (weeklyEl) weeklyEl.textContent = formatMoney(weeklyOutcome);
-    if (monthlyEl) monthlyEl.textContent = formatMoney(monthlyOutcome);
-
-    // Update Asset Summary Table (Rasio)
-    // Update Asset Summary Tables (IDR, USD, Investment)
-    const tableIDR = document.querySelector('#assetTableIDR tbody');
-    const tableUSD = document.querySelector('#assetTableUSD tbody');
-    const tableInvest = document.querySelector('#assetTableInvest tbody');
-
-    if (tableIDR && tableUSD && tableInvest) {
-        const idrAssets = config.paymentMethods.filter(m => !m.isUSD && !m.isInvestment);
-        const usdAssets = config.paymentMethods.filter(m => m.isUSD);
-        const investAssets = config.paymentMethods.filter(m => m.isInvestment);
-
-        const kurs = getKurs();
-
-        // 1. Render IDR Assets
-        let htmlIDR = '';
-        idrAssets.forEach(m => {
-            const current = methodTotals[m.name] || 0;
-            htmlIDR += `
-                <tr>
-                    <td>${m.icon || '🏦'} ${m.name}</td>
-                    <td class="editable-cell" onclick="handleManualAdjustment('${m.name}', ${current})">
-                        ${formatMoney(current)}
-                    </td>
-                    <td>
-                        <button class="icon-btn-small" onclick="handleManualAdjustment('${m.name}', ${current})">✏️</button>
-                    </td>
-                </tr>
-            `;
-        });
-        tableIDR.innerHTML = htmlIDR;
-
-        // 2. Render USD Assets
-        let htmlUSD = '';
-        usdAssets.forEach(m => {
-            const currentUSD = methodTotals[m.name] || 0; // This is actually stored as USD value if it's starting balance? 
-            // Wait, calculateTotals converts everything to IDR in 'methodTotals'??
-            // checking calculateTotals:
-            // if (method.isUSD) we do methodTotals[m.name] = method.starting. 
-            // In calculateTotals, "return sum + (val * getKurs())" for balance.
-            // So methodTotals[name] holds the RAW value (USD amount).
-
-            const totalIDR = currentUSD * kurs;
-
-
-            htmlUSD += `
-                <tr>
-                    <td>${m.icon || '🏦'} ${m.name}</td>
-                    <td class="editable-cell" onclick="handleManualAdjustment('${m.name}', ${currentUSD})">
-                        ${formatMoney(currentUSD, 'USD')}
-                    </td>
-                    <td class="editable-cell" onclick="handleKursPrompt()">
-                        ${formatMoney(kurs)}
-                    </td>
-                    <td>${formatMoney(totalIDR)}</td>
-                </tr>
-            `;
-        });
-        tableUSD.innerHTML = htmlUSD;
-
-        // 3. Render Investment Assets
-        let htmlInvest = '';
-        investAssets.forEach(m => {
-            const qty = m.qty || 0;
-            const price = m.price || 0;
-            const totalValue = qty * price;
-
-            htmlInvest += `
-                <tr>
-                    <td>${m.icon || ''} ${m.name}</td>
-                    <td class="editable-cell" onclick="handleInvestmentAdjust('${m.name}', 'qty')">
-                        ${qty.toLocaleString()}
-                    </td>
-                    <td class="editable-cell" onclick="handleInvestmentAdjust('${m.name}', 'price')">
-                        ${formatMoney(price)}
-                    </td>
-                    <td>${formatMoney(totalValue)}</td>
-                </tr>
-            `;
-        });
-        tableInvest.innerHTML = htmlInvest;
-    }
-
-    const totalCurrentEl = document.getElementById('totalCurrent');
-    if (totalCurrentEl) totalCurrentEl.textContent = formatMoney(balance);
-
-    // Render charts if Dashboard is active
-    if (document.getElementById('dashboard-page') && document.getElementById('dashboard-page').classList.contains('active')) {
-        renderDailyChart();
-        renderPieCharts();
-    }
-}
-// Switch between tabs
-function switchTab(tabId) {
-    const pages = document.querySelectorAll('.page');
-    const tabBtns = document.querySelectorAll('.tab-btn');
-
-    pages.forEach(p => p.classList.remove('active'));
-    tabBtns.forEach(b => b.classList.remove('active'));
-
-    const activePage = document.getElementById(`${tabId}-page`);
-    const activeBtn = document.getElementById(`tab-${tabId}`);
-
-    if (activePage) activePage.classList.add('active');
-    if (activeBtn) activeBtn.classList.add('active');
-
-    if (tabId === 'dashboard') {
-        renderDailyChart();
-        renderPieCharts();
-    } else if (tabId === 'settings') {
-        updateRatesDisplay();
-    }
-}
-
-// Handle Kurs Update Prompt
-function handleKursPrompt() {
-    const currentKurs = getKurs();
-    const input = prompt("Enter current USD to IDR Kurs:", addThousandSeparator(currentKurs));
-    if (input === null || input === "") return;
-
-    const newKurs = parseFormattedNumber(input);
-    if (newKurs > 0) {
-        saveKurs(newKurs);
-        alert(`Kurs updated to ${formatMoney(newKurs)}`);
-    } else {
-        alert("Please enter a valid number.");
-    }
-}
-// Fetch latest USD/IDR exchange rate
-async function fetchKurs() {
-    const syncStatus = document.getElementById('syncStatus');
-    try {
-        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
-        const data = await resp.json();
-
-        if (data && data.rates && data.rates.IDR) {
-            const newKurs = data.rates.IDR;
-            saveKurs(newKurs);
-            updateBalance();
-            updateRatesDisplay();
-            if (syncStatus) {
-                syncStatus.textContent = `✅ USD Kurs updated: ${formatMoney(newKurs)} (${new Date().toLocaleTimeString()})`;
-                syncStatus.style.color = '#10b981';
-            }
-            alert(`USD Kurs updated!\nNew rate: ${formatMoney(newKurs)}`);
-            return true;
-        }
-    } catch (e) {
-        console.error("Kurs Sync Error:", e);
-    }
-    if (syncStatus) {
-        syncStatus.textContent = "❌ Failed to update USD Kurs.";
-        syncStatus.style.color = '#ef4444';
-    }
-    alert("Failed to fetch USD Kurs. Check your connection.");
-    return false;
-}
-
-
-// ============================================================
-// Gold Price Fetching — Multi-source with fallbacks
-// ============================================================
-
-// Internal helper: try fetching gold XAU/USD price from multiple sources
-async function _fetchGoldXauUsd() {
-    const sources = [
-        // Source 1: CoinGecko (tether-gold ≈ XAU, free, CORS-friendly)
-        async () => {
-            const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd');
-            if (!resp.ok) throw new Error('CoinGecko HTTP ' + resp.status);
-            const data = await resp.json();
-            if (data['tether-gold'] && data['tether-gold'].usd) {
-                // CoinGecko returns price per 1 troy oz equivalent
-                return { xauUsd: data['tether-gold'].usd, source: 'CoinGecko' };
-            }
-            throw new Error('CoinGecko: no data');
-        },
-        // Source 2: goldprice.org via corsproxy.io
-        async () => {
-            const url = 'https://corsproxy.io/?' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error('corsproxy HTTP ' + resp.status);
-            const data = await resp.json();
-            if (data.items && data.items.length > 0) {
-                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (corsproxy)' };
-            }
-            throw new Error('corsproxy: no items');
-        },
-        // Source 3: goldprice.org via allorigins
-        async () => {
-            const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
-            const resp = await fetch(url);
-            if (!resp.ok) throw new Error('allorigins HTTP ' + resp.status);
-            const data = await resp.json();
-            if (data.items && data.items.length > 0) {
-                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (allorigins)' };
-            }
-            throw new Error('allorigins: no items');
-        },
-        // Source 4: goldprice.org direct (works in non-browser environments)
-        async () => {
-            const resp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
-            if (!resp.ok) throw new Error('direct HTTP ' + resp.status);
-            const data = await resp.json();
-            if (data.items && data.items.length > 0) {
-                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (direct)' };
-            }
-            throw new Error('direct: no items');
-        }
-    ];
-
-    for (let i = 0; i < sources.length; i++) {
-        try {
-            const result = await sources[i]();
-            console.log(`Gold price fetched from ${result.source}: $${result.xauUsd}`);
-            return result;
-        } catch (e) {
-            console.warn(`Gold source ${i + 1} failed:`, e.message);
-        }
-    }
-    return null; // All sources failed
-}
-
-// Fetch Gold Price (with UI feedback)
-async function fetchGoldPrice() {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) {
-        syncStatus.textContent = '⏳ Fetching gold price...';
-        syncStatus.style.color = 'var(--text-muted)';
-    }
-
-    const result = await _fetchGoldXauUsd();
-
-    if (result) {
-        const kurs = getKurs();
-        const goldIdrPerGram = Math.round((result.xauUsd * kurs) / 31.1035);
-
-        const config = getConfig();
-        const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
-        if (goldAsset) {
-            goldAsset.price = goldIdrPerGram;
-            saveConfig(config);
-            updateBalance();
-            updateRatesDisplay();
-            if (syncStatus) {
-                syncStatus.textContent = `✅ Gold: ${formatMoney(goldIdrPerGram)}/gram (XAU: $${result.xauUsd.toLocaleString()}) — ${new Date().toLocaleTimeString()}`;
-                syncStatus.style.color = '#10b981';
-            }
-            alert(`Gold price updated!\nXAU/USD: $${result.xauUsd.toLocaleString()}\nIDR/gram: ${formatMoney(goldIdrPerGram)}\nSource: ${result.source}`);
-            return true;
-        } else {
-            alert("Gold asset not found in your configuration.");
-        }
-    } else {
-        // All APIs failed — offer manual input
-        if (syncStatus) {
-            syncStatus.textContent = "❌ All gold APIs failed. Use manual input.";
-            syncStatus.style.color = '#ef4444';
-        }
-        const manual = prompt("Could not fetch gold price automatically.\nEnter current XAU/USD price manually (e.g. 3300):");
-        if (manual !== null && manual !== "") {
-            const xauUsd = parseFloat(manual);
-            if (xauUsd > 0) {
-                const kurs = getKurs();
-                const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
-                const config = getConfig();
-                const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
-                if (goldAsset) {
-                    goldAsset.price = goldIdrPerGram;
-                    saveConfig(config);
-                    updateBalance();
-                    updateRatesDisplay();
-                    alert(`Gold price set manually!\nXAU/USD: $${xauUsd}\nIDR/gram: ${formatMoney(goldIdrPerGram)}`);
-                    return true;
-                }
-            } else {
-                alert("Invalid number entered.");
-            }
-        }
-    }
-    return false;
-}
-
-// Sync all rates at once
-async function syncAllRates() {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) {
-        syncStatus.textContent = "⏳ Syncing all rates...";
-        syncStatus.style.color = 'var(--text-muted)';
-    }
-
-    const kursOk = await fetchKursQuiet();
-    const goldOk = await fetchGoldQuiet();
-
-    const parts = [];
-    if (kursOk) parts.push(`Kurs: ${formatMoney(getKurs())}`);
-    if (goldOk) {
-        const config = getConfig();
-        const g = config.paymentMethods.find(m => m.name === 'Gold');
-        if (g) parts.push(`Gold: ${formatMoney(g.price)}/gram`);
-    }
-
-    updateBalance();
-    updateRatesDisplay();
-
-    if (kursOk || goldOk) {
-        if (syncStatus) {
-            syncStatus.textContent = `✅ Synced: ${new Date().toLocaleTimeString()} — ${parts.join(' | ')}`;
-            syncStatus.style.color = '#10b981';
-        }
-        alert(`Rates updated!\n${parts.join('\n')}`);
-    } else {
-        if (syncStatus) {
-            syncStatus.textContent = "❌ Sync failed. Check your connection.";
-            syncStatus.style.color = '#ef4444';
-        }
-        alert("Failed to fetch rates. Check your internet connection.");
-    }
-}
-
-// Quiet versions (no individual alerts, for use in syncAll)
-async function fetchKursQuiet() {
-    try {
-        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
-        const data = await resp.json();
-        if (data && data.rates && data.rates.IDR) {
-            saveKurs(data.rates.IDR);
-            return true;
-        }
-    } catch (e) { console.error("Kurs Sync Error:", e); }
-    return false;
-}
-
-async function fetchGoldQuiet() {
-    const result = await _fetchGoldXauUsd();
-    if (result) {
-        const kurs = getKurs();
-        const goldIdrPerGram = Math.round((result.xauUsd * kurs) / 31.1035);
-        const config = getConfig();
-        const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
-        if (goldAsset) {
-            goldAsset.price = goldIdrPerGram;
-            saveConfig(config);
-            return true;
-        }
-    }
-    return false;
-}
-
-// Display current saved rates in settings panel
-function updateRatesDisplay() {
-    const display = document.getElementById('currentRatesDisplay');
-    if (!display) return;
-
-    const kurs = getKurs();
-    const config = getConfig();
-    const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
-    const goldPrice = goldAsset ? goldAsset.price || 0 : 0;
-
-    display.innerHTML = `
-        <div class="rate-item">
-            <span class="rate-label">💵 USD Kurs</span>
-            <span class="rate-value">${formatMoney(kurs)}</span>
-        </div>
-        <div class="rate-item">
-            <span class="rate-label">🥇 Gold/gram</span>
-            <span class="rate-value">${formatMoney(goldPrice)}</span>
-        </div>
-    `;
-}
-
-
-// Handle Investment Qty/Price adjustment
-function handleInvestmentAdjust(methodName, field) {
-    const config = getConfig();
-    const methodConfig = config.paymentMethods.find(m => m.name === methodName);
-    if (!methodConfig) return;
-
-    const currentValue = field === 'qty' ? methodConfig.qty || 0 : methodConfig.price || 0;
-    const label = field === 'qty' ? 'Quantity' : 'Price';
-    const input = prompt(`Enter new ${label} for ${methodName}:`, addThousandSeparator(currentValue));
-
-    if (input === null || input === "") return;
-
-    const newValue = parseFormattedNumber(input);
-    if (newValue >= 0) {
-        if (field === 'qty') {
-            methodConfig.qty = newValue;
-        } else {
-            methodConfig.price = newValue;
-        }
-        saveConfig(config);
-        updateBalance();
-        alert(`${methodName} ${label} updated to ${field === 'qty' ? newValue.toLocaleString('id-ID') : formatMoney(newValue)}`);
-    } else {
-        alert("Please enter a valid number.");
-    }
-}
-
-// Handle manual adjustment of asset total
-function handleManualAdjustment(methodName, currentValue) {
-    const input = prompt(`Enter new total for ${methodName}:`, addThousandSeparator(currentValue));
-    if (input === null || input === "") return;
-
-    const newTotal = parseFormattedNumber(input);
-    if (newTotal === 0 && input.replace(/[^0-9]/g, '') !== '0') {
-        alert("Please enter a valid number.");
-        return;
-    }
-
-    const config = getConfig();
-    const transactions = getTransactions();
-
-    // Calculate current transaction effect
-    let transactionEffect = 0;
-    transactions.forEach(t => {
-        if (t.paymentMethod === methodName) {
-            transactionEffect += (t.type === 'income' ? t.amount : -t.amount);
-        }
-    });
-
-    // New Starting = Target Total - Transaction Effect
-    const newStarting = newTotal - transactionEffect;
-
-    const methodConfig = config.paymentMethods.find(m => m.name === methodName);
-    if (methodConfig) {
-        methodConfig.starting = newStarting;
-        saveConfig(config);
-        updateBalance();
-        alert(`${methodName} adjusted to ${formatMoney(newTotal)}`);
-    }
-}
-
-// Group outcomes for Chart.js
-function groupOutcomesByDate(days = 7) {
-    const transactions = getTransactions();
-    const labels = [];
-    const data = [];
-
-    for (let i = days - 1; i >= 0; i--) {
-        const d = new Date();
-        d.setDate(d.getDate() - i);
-        const dateStr = d.toISOString().split('T')[0];
-
-        const dayTotal = transactions
-            .filter(t => t.type === 'expense' && t.date.split('T')[0] === dateStr)
-            .reduce((sum, t) => sum + t.amount, 0);
-
-        // Format label: short weekday for 7D, numeric for 30D
-        const labelText = days <= 7
-            ? d.toLocaleDateString('id-ID', { weekday: 'short', day: 'numeric' })
-            : d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
-
-        labels.push(labelText);
-        data.push(dayTotal);
-    }
-
-    return { labels, data };
-}
-
-// Update Trend Range
-function updateTrendRange(days) {
-    TREND_RANGE = days;
-
-    // Update UI buttons
-    document.querySelectorAll('.trend-range-btn').forEach(btn => {
-        btn.classList.toggle('active', parseInt(btn.dataset.days) === days);
-    });
-
-    renderDailyChart();
-}
-
-// Render Daily Trend Chart
-function renderDailyChart() {
-    const canvas = document.getElementById('dailyChart');
-    if (!canvas) return;
-
-    const ctx = canvas.getContext('2d');
-    const chartData = groupOutcomesByDate(TREND_RANGE);
-
-    if (dailyChartInstance) {
-        dailyChartInstance.destroy();
-    }
-
-    dailyChartInstance = new Chart(ctx, {
-        type: 'line',
-        data: {
-            labels: chartData.labels,
-            datasets: [{
-                label: 'Outcome Trend',
-                data: chartData.data,
-                borderColor: '#0060af',
-                backgroundColor: 'rgba(0, 96, 175, 0.1)',
-                fill: true,
-                tension: 0.4,
-                pointRadius: TREND_RANGE > 7 ? 4 : 6,
-                pointBackgroundColor: '#0060af',
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2
-            }]
-        },
-        options: {
-            responsive: true,
-            maintainAspectRatio: false,
-            scales: {
-                y: {
-                    beginAtZero: true,
-                    ticks: { callback: (v) => formatMoney(v) }
-                },
-                x: {
-                    ticks: {
-                        autoSkip: true,
-                        maxRotation: 0,
-                        font: { size: 10 }
-                    }
-                }
-            },
-            plugins: {
-                legend: { display: false },
-                tooltip: {
-                    callbacks: {
-                        label: (c) => ` Outcome: ${formatMoney(c.raw)}`
-                    }
-                }
-            }
-        }
-    });
-}
-
-// Aggregate monthly category data
-function aggregateMonthlyCategories() {
-    const transactions = getTransactions();
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-
-    const incomeData = {};
-    const outcomeData = {};
-
-    transactions.forEach(t => {
-        const transDate = new Date(t.date);
-        if (transDate >= startOfMonth) {
-            const cat = t.category || 'Other';
-            if (t.type === 'income') {
-                incomeData[cat] = (incomeData[cat] || 0) + t.amount;
-            } else {
-                outcomeData[cat] = (outcomeData[cat] || 0) + t.amount;
-            }
-        }
-    });
-
-    return {
-        income: {
-            labels: Object.keys(incomeData),
-            values: Object.values(incomeData)
-        },
-        outcome: {
-            labels: Object.keys(outcomeData),
-            values: Object.values(outcomeData)
-        }
-    };
-}
-
-// Render Monthly Pie Charts
-function renderPieCharts() {
-    const data = aggregateMonthlyCategories();
-    // A palette of vibrant, harmonious colors for the pie charts
-    const colors = [
-        '#4e73df', '#1cc88a', '#36b9cc', '#f6c23e', '#e74a3b',
-        '#858796', '#5a5c69', '#6610f2', '#6f42c1', '#e83e8c'
-    ];
-
-    // Income Pie Chart
-    const incomeCanvas = document.getElementById('incomePieChart');
-    if (incomeCanvas) {
-        if (incomePieChartInstance) incomePieChartInstance.destroy();
-        if (data.income.labels.length > 0) {
-            const total = data.income.values.reduce((a, b) => a + b, 0);
-            incomePieChartInstance = new Chart(incomeCanvas, {
-                type: 'doughnut',
-                data: {
-                    labels: data.income.labels,
-                    datasets: [{
-                        data: data.income.values,
-                        backgroundColor: colors,
-                        hoverOffset: 12,
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                boxWidth: 12,
-                                padding: 15,
-                                font: { size: 11, family: "'Inter', sans-serif", weight: '500' }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => {
-                                    const value = context.raw;
-                                    const percentage = ((value / total) * 100).toFixed(1);
-                                    return ` ${context.label}: ${formatMoney(value)} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        } else {
-            const ctx = incomeCanvas.getContext('2d');
-            ctx.clearRect(0, 0, incomeCanvas.width, incomeCanvas.height);
-            ctx.font = '14px sans-serif';
-            ctx.fillStyle = '#6b7280';
-            ctx.textAlign = 'center';
-            ctx.fillText('No Income data', incomeCanvas.width / 2, incomeCanvas.height / 2);
-        }
-    }
-
-    // Outcome Pie Chart
-    const outcomeCanvas = document.getElementById('outcomePieChart');
-    if (outcomeCanvas) {
-        if (outcomePieChartInstance) outcomePieChartInstance.destroy();
-        if (data.outcome.labels.length > 0) {
-            const total = data.outcome.values.reduce((a, b) => a + b, 0);
-            outcomePieChartInstance = new Chart(outcomeCanvas, {
-                type: 'doughnut',
-                data: {
-                    labels: data.outcome.labels,
-                    datasets: [{
-                        data: data.outcome.values,
-                        backgroundColor: colors,
-                        hoverOffset: 12,
-                        borderWidth: 2,
-                        borderColor: '#ffffff'
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    cutout: '65%',
-                    plugins: {
-                        legend: {
-                            position: 'bottom',
-                            labels: {
-                                boxWidth: 12,
-                                padding: 15,
-                                font: { size: 11, family: "'Inter', sans-serif", weight: '500' }
-                            }
-                        },
-                        tooltip: {
-                            callbacks: {
-                                label: (context) => {
-                                    const value = context.raw;
-                                    const percentage = ((value / total) * 100).toFixed(1);
-                                    return ` ${context.label}: ${formatMoney(value)} (${percentage}%)`;
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-        } else {
-            const ctx = outcomeCanvas.getContext('2d');
-            ctx.clearRect(0, 0, outcomeCanvas.width, outcomeCanvas.height);
-            ctx.font = '14px sans-serif';
-            ctx.fillStyle = '#6b7280';
-            ctx.textAlign = 'center';
-            ctx.fillText('No Outcome data', outcomeCanvas.width / 2, outcomeCanvas.height / 2);
-        }
-    }
-}
-
-// Display all transactions
-function displayTransactions() {
-    const transactions = getTransactions();
-    const transactionsList = document.getElementById('transactionsList');
-
-    if (transactions.length === 0) {
-        transactionsList.innerHTML = `
-            <div class="empty-state">
-                <p>No transactions yet</p>
-                <p class="empty-subtitle">Add your first transaction above!</p>
-            </div>
-        `;
-        return;
-    }
-
-    // Sort by newest first
-    transactions.sort((a, b) => b.id - a.id);
-
-    transactionsList.innerHTML = transactions.map(transaction => {
-        const config = getConfig();
-        const method = config.paymentMethods.find(m => m.name === transaction.paymentMethod);
-        const isUSD = method && method.isUSD;
-
+    document.getElementById('account-balances-container').innerHTML = Object.values(bals).sort((a, b) => a.n.localeCompare(b.n)).map((b, idx) => {
+        const isUSD = b.c === 'USD';
+        const id = `bal-${idx}`;
         return `
-        <div class="transaction-item ${transaction.type}">
-            <div class="transaction-info">
-                <div class="transaction-date">${new Date(transaction.date).toLocaleDateString('id-ID')}</div>
-                <div class="transaction-description">${transaction.description}</div>
-                <div class="transaction-category" onclick="editTransactionCategory(${transaction.id})">🏷️ ${transaction.category}</div>
-                <div class="transaction-payment">${transaction.paymentMethod || 'N/A'}</div>
-            </div>
-            <div class="transaction-amount ${transaction.type}" onclick="editTransactionAmount(${transaction.id})">
-                ${transaction.type === 'expense' ? '-' : '+'} ${formatMoney(transaction.amount, isUSD ? 'USD' : 'IDR')}
-            </div>
-            <button class="delete-btn" onclick="deleteTransaction(${transaction.id})">🗑️</button>
+        <div class="bg-black/30 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition flex flex-col justify-center min-h-[80px] relative group shadow-inner">
+            <span class="text-[10px] text-slate-400 uppercase font-bold tracking-widest truncate mb-1" title="${b.n}">${b.n}</span>
+            <span id="${id}" class="font-bold font-mono text-sm tracking-tighter truncate ${b.v >= 0 ? 'text-theme-primaryLight' : 'text-rose-400'} ${isUSD ? 'cursor-pointer' : ''}" onclick="${isUSD ? `toggleCurrency('${id}', ${b.v})` : ''}">
+                ${fmt(b.v, b.c)}
+            </span>
+            ${isUSD ? '<div class="absolute top-2 right-2 text-[8px] bg-white/5 p-1 rounded text-slate-500 group-hover:text-theme-primaryLight transition"><i class="fas fa-exchange-alt"></i></div>' : ''}
         </div>
     `;
     }).join('');
+
+    const totalIncReal = incIDR + (incUSD * USD_KURS);
+    const totalExpReal = expIDR + (expUSD * USD_KURS);
+    const netCashFlowIDR = totalIncReal - totalExpReal;
+    let totalAssetIDR = 0; Object.values(bals).forEach(b => { if (b.c === 'IDR') totalAssetIDR += b.v; if (b.c === 'USD') totalAssetIDR += (b.v * USD_KURS); });
+
+    document.querySelector('#summary-income .stat-value').textContent = fmt(totalIncReal, 'IDR');
+    document.querySelector('#summary-expense .stat-value').textContent = fmt(totalExpReal, 'IDR');
+    const netEl = document.querySelector('#summary-net .stat-value');
+    netEl.textContent = fmt(netCashFlowIDR, 'IDR');
+    netEl.className = `stat-value text-[13px] sm:text-base md:text-2xl font-bold truncate z-10 font-mono tracking-tighter ${netCashFlowIDR >= 0 ? 'text-slate-200' : 'text-rose-400'}`;
+
+    document.getElementById('rate-display').textContent = `1 USD = ${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}`;
+    document.getElementById('wealth-display').textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAssetIDR);
+
+    const s = document.getElementById('filter-search').value.toLowerCase(), start = document.getElementById('filter-start').value, end = document.getElementById('filter-end').value, fCat = document.getElementById('filter-cat').value, fAcc = document.getElementById('filter-acc').value;
+    let filtered = masterData.filter(d => {
+        if (start && d.date < start) return false; if (end && d.date > end) return false;
+        if (fCat !== 'all' && d.cat !== fCat) return false; if (fAcc !== 'all' && d.acc !== fAcc) return false;
+        if (s && !d.desc.toLowerCase().includes(s)) return false; return true;
+    }).sort((a, b) => sortState.o === 'asc' ? (a[sortState.k] > b[sortState.k] ? 1 : -1) : (a[sortState.k] < b[sortState.k] ? 1 : -1));
+
+    document.getElementById('mobile-trans-list').innerHTML = filtered.map(d => `
+    <div class="glass p-4 rounded-2xl flex justify-between items-center active:scale-[0.98] transition-transform">
+        <div class="flex flex-col max-w-[60%] space-y-1.5">
+            <span class="text-sm font-bold text-slate-100 truncate">${d.desc}</span>
+            <div class="flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-400">
+                <span class="bg-black/30 px-2 py-1 rounded-md border border-white/5">${d.date.slice(5)}</span>
+                <span class="bg-theme-primary/10 text-theme-primaryLight px-2 py-1 rounded-md border border-theme-primary/20 uppercase tracking-wider">${d.acc}</span>
+            </div>
+        </div>
+        <div class="flex flex-col items-end gap-2">
+            <span class="font-bold font-mono text-sm ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</span>
+            <div class="flex gap-2">
+                <button class="bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
+                <button class="bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+            </div>
+        </div>
+    </div>
+`).join('');
+    if (filtered.length === 0) document.getElementById('mobile-trans-list').innerHTML = '<div class="text-center text-slate-500 py-10 text-sm italic glass rounded-2xl">No transactions found</div>';
+
+    document.getElementById('data-body').innerHTML = filtered.map(d => `
+    <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 group">
+        <td class="px-6 py-4 text-sm text-slate-400 whitespace-nowrap font-mono">${d.date}</td>
+        <td class="px-6 py-4 text-sm text-slate-200 font-medium">${d.desc}</td>
+        <td class="px-6 py-4 text-sm"><span class="bg-theme-primary/10 text-theme-primaryLight border border-theme-primary/20 px-2.5 py-1 rounded-lg text-xs font-medium">${d.acc}</span></td>
+        <td class="px-6 py-4 text-sm text-slate-400"><span class="bg-black/30 border border-white/5 px-2.5 py-1 rounded-lg text-xs">${d.cat}</span></td>
+        <td class="px-6 py-4 text-sm text-right font-mono font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</td>
+        <td class="px-4 py-4 text-center">
+            <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition">
+                <button class="w-8 h-8 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
+                <button class="w-8 h-8 bg-rose-500/10 rounded-lg text-rose-400 hover:bg-rose-500/20 transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+            </div>
+        </td>
+    </tr>
+`).join('');
+    if (filtered.length === 0) document.getElementById('data-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-500 text-sm italic">No data found</td></tr>';
+
+    renderDaily(masterData); renderCalendar(masterData); updateChart(masterData); updateTrendChart(masterData); renderDashWidgets(masterData);
 }
 
-// Add new transaction
-function addTransaction(date, description, amount, category, type, paymentMethod) {
-    const transactions = getTransactions();
-
-    const newTransaction = {
-        id: Date.now(),
-        description: description,
-        amount: parseFloat(amount),
-        category: category,
-        type: type,
-        paymentMethod: paymentMethod,
-        date: date || new Date().toISOString()
-    };
-
-    transactions.push(newTransaction);
-    saveTransactions(transactions);
-
-    updateBalance();
-    displayTransactions();
+function renderDaily(data) {
+    const dly = {}; data.filter(d => d.type === 'expense' && d.cat !== 'Transfer').forEach(d => { if (!dly[d.date]) dly[d.date] = { idr: 0, usd: 0 }; if (d.curr === 'IDR') dly[d.date].idr += d.amt; else dly[d.date].usd += d.amt; });
+    document.getElementById('daily-body').innerHTML = Object.keys(dly).sort().reverse().map(dt => `<tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0"><td class="px-6 py-4 text-sm text-slate-300 font-medium font-mono">${dt}</td><td class="px-6 py-4 text-sm text-right text-rose-400 font-mono">${dly[dt].idr > 0 ? fmt(dly[dt].idr, 'IDR') : '-'}</td><td class="px-6 py-4 text-sm text-right text-rose-400 font-mono">${dly[dt].usd > 0 ? fmt(dly[dt].usd, 'USD') : '-'}</td></tr>`).join('');
 }
 
-// Delete transaction
-function deleteTransaction(id) {
-    if (confirm('Are you sure you want to delete this transaction?')) {
-        let transactions = getTransactions();
-        transactions = transactions.filter(transaction => transaction.id !== id);
-        saveTransactions(transactions);
-
-        updateBalance();
-        displayTransactions();
-    }
-}
-
-// Edit transaction category
-function editTransactionCategory(id) {
-    const transactions = getTransactions();
-    const transaction = transactions.find(t => t.id === id);
-    if (!transaction) return;
-
-    const config = getConfig();
-    const targetType = transaction.type === 'expense' ? 'Outcome' : 'Income';
-    const availableCategories = config.categories
-        .filter(cat => !cat.type || cat.type === targetType)
-        .map(cat => cat.name);
-
-    const input = prompt(`Enter new category for "${transaction.description}"\nAvailable: ${availableCategories.join(', ')}`, transaction.category);
-
-    if (input && availableCategories.includes(input)) {
-        transaction.category = input;
-        saveTransactions(transactions);
-        updateBalance();
-        displayTransactions();
-    } else if (input) {
-        alert("Invalid category. Please choose from the list.");
-    }
-}
-
-// Edit transaction amount
-function editTransactionAmount(id) {
-    const transactions = getTransactions();
-    const transaction = transactions.find(t => t.id === id);
-    if (!transaction) return;
-
-    const input = prompt(`Enter new amount for "${transaction.description}":`, addThousandSeparator(transaction.amount));
-    if (input === null || input === "") return;
-
-    const newAmount = parseFormattedNumber(input);
-    if (newAmount >= 0) {
-        transaction.amount = newAmount;
-        saveTransactions(transactions);
-        updateBalance();
-        displayTransactions();
-    } else {
-        alert("Please enter a valid positive number.");
-    }
-}
-
-
-// Clear all transactions
-function clearAllTransactions() {
-    if (confirm('Are you sure you want to delete ALL transactions? This cannot be undone!')) {
-        localStorage.removeItem('transactions');
-        updateBalance();
-        displayTransactions();
-    }
-}
-
-// Reset everything: clear all transactions AND reset all starting balances to 0
-function resetAll() {
-    if (confirm('⚠️ RESET ALL?\n\nThis will:\n- Delete ALL transactions\n- Reset ALL asset starting balances to 0\n\nThis action CANNOT be undone!')) {
-        // Clear transactions
-        localStorage.removeItem('transactions');
-
-        // Reset all starting balances to 0 in config
-        const config = getConfig();
-        config.paymentMethods.forEach(m => {
-            m.starting = 0;
-            if (m.qty !== undefined) m.qty = 0;
-            if (m.price !== undefined) m.price = 0;
-        });
-        saveConfig(config);
-
-        updateBalance();
-        displayTransactions();
-        alert('✅ All data has been reset.');
-    }
-}
-
-// ============================================================
-// Data Backup / Restore — Direct GitHub API Sync
-// ============================================================
-
-const GITHUB_REPO = 'Yoggie24/Xpense_tracker';
-const GITHUB_BRANCH = 'main';
-const BACKUP_FILENAME = 'data/local-data.json';
-
-function getGitHubToken() {
-    return localStorage.getItem('github_token') || '';
-}
-
-function saveGitHubToken() {
-    const token = document.getElementById('github-token-input').value.trim();
-    localStorage.setItem('github_token', token);
-    alert('GitHub Token saved!');
-    updateGitHubUI();
-}
-
-function updateGitHubUI() {
-    const token = getGitHubToken();
-    const input = document.getElementById('github-token-input');
-    if (input && token) {
-        input.value = token;
-    }
-}
-
-// Push local data directly to GitHub using REST API
-async function pushToGitHub() {
-    const token = getGitHubToken();
-    const status = document.getElementById('backupStatus');
-
-    if (!token) {
-        alert("Please configure your GitHub Personal Access Token in Settings first.");
-        return;
-    }
-
-    if (status) {
-        status.textContent = '⏳ Pushing to GitHub...';
-        status.style.color = 'var(--text-muted)';
-    }
-
-    const data = {
-        _meta: {
-            exportedAt: new Date().toISOString(),
-            version: 2,
-            source: 'MoneyTracker'
-        },
-        transactions: getTransactions(),
-        config: JSON.parse(localStorage.getItem('moneyTrackerConfig') || 'null'),
-        usd_kurs: parseFloat(localStorage.getItem('usd_kurs') || '16000')
-    };
-
-    const contentStr = JSON.stringify(data, null, 2);
-    // btoa requires latin1 string, so we encode URI components first if there are special characters
-    const encodedContent = btoa(unescape(encodeURIComponent(contentStr)));
-
-    try {
-        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${BACKUP_FILENAME}`;
-        
-        // 1. Get current file SHA (required for updating an existing file)
-        let sha = null;
-        const getResp = await fetch(apiUrl + `?ref=${GITHUB_BRANCH}`, {
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json'
-            }
-        });
-
-        if (getResp.ok) {
-            const fileInfo = await getResp.json();
-            sha = fileInfo.sha;
-        } else if (getResp.status !== 404) {
-            throw new Error(`Failed to get current file: ${getResp.status}`);
+function renderCalendar(data) {
+    const g = document.getElementById('calendar-grid'); g.innerHTML = ''; const y = calendarDate.getFullYear(), m = calendarDate.getMonth(); document.getElementById('calendar-header').textContent = calendarDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+    for (let i = 0; i < new Date(y, m, 1).getDay(); i++) g.appendChild(document.createElement('div'));
+    for (let d = 1; d <= new Date(y, m + 1, 0).getDate(); d++) {
+        const dateStr = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`, items = data.filter(i => i.date === dateStr), el = document.createElement('div');
+        el.className = "calendar-day bg-black/20 border border-white/5 rounded-2xl p-2 flex flex-col items-center justify-start cursor-pointer relative overflow-hidden group";
+        el.innerHTML = `<span class="text-xs text-slate-400 mb-1 font-bold z-10 group-hover:text-white transition">${d}</span>`;
+        if (items.length > 0) {
+            el.innerHTML += `<div class="flex gap-1.5 mt-auto pb-1 z-10">${items.some(x => x.type === 'income') ? '<div class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></div>' : ''}${items.some(x => x.type === 'expense') ? '<div class="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(225,29,72,0.8)]"></div>' : ''}</div>`;
+            el.onclick = () => {
+                document.getElementById('cal-detail-title').textContent = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                document.getElementById('cal-detail-content').innerHTML = items.map(x => `<div class="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5 mb-2 hover:bg-black/50 transition"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full ${x.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}"></div><div><div class="text-sm text-white font-bold">${x.desc}</div><div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">${x.cat} • ${x.acc}</div></div></div><div class="${x.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-sm font-bold bg-white/5 px-2 py-1 rounded-lg">${fmt(x.amt, x.curr)}</div></div>`).join('');
+                document.getElementById('calendar-detail-modal').classList.remove('hidden');
+            };
         }
-
-        // 2. Put new content
-        const body = {
-            message: `Auto-sync data: ${new Date().toLocaleString()}`,
-            content: encodedContent,
-            branch: GITHUB_BRANCH
-        };
-        if (sha) body.sha = sha;
-
-        const putResp = await fetch(apiUrl, {
-            method: 'PUT',
-            headers: {
-                'Authorization': `token ${token}`,
-                'Accept': 'application/vnd.github.v3+json',
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(body)
-        });
-
-        if (!putResp.ok) {
-            const errData = await putResp.json();
-            throw new Error(`GitHub API Error: ${errData.message}`);
-        }
-
-        if (status) {
-            status.textContent = `✅ Successfully pushed to GitHub at ${new Date().toLocaleTimeString()}`;
-            status.style.color = '#10b981';
-        }
-        alert("Data successfully synced to GitHub!");
-
-    } catch (err) {
-        console.error("GitHub Push Error:", err);
-        if (status) {
-            status.textContent = `❌ Push failed: ${err.message}`;
-            status.style.color = '#ef4444';
-        }
-        alert(`Failed to push to GitHub:\n${err.message}`);
+        g.appendChild(el);
     }
 }
+document.getElementById('prev-month').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() - 1); renderCalendar(masterData); });
+document.getElementById('next-month').addEventListener('click', () => { calendarDate.setMonth(calendarDate.getMonth() + 1); renderCalendar(masterData); });
+document.getElementById('cal-close').addEventListener('click', () => document.getElementById('calendar-detail-modal').classList.add('hidden'));
 
-// Load data from GitHub via REST API
-async function loadDataFromGitHub(silent = false) {
-    const token = getGitHubToken();
-    const status = document.getElementById('backupStatus');
-
-    if (status) {
-        status.textContent = '⏳ Fetching from GitHub...';
-        status.style.color = 'var(--text-muted)';
-    }
-
-    try {
-        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${BACKUP_FILENAME}?ref=${GITHUB_BRANCH}`;
-        
-        const headers = {
-            'Accept': 'application/vnd.github.v3+json'
-        };
-        // Use token if available to access private repos
-        if (token) headers['Authorization'] = `token ${token}`;
-
-        // Add cache-buster
-        const resp = await fetch(apiUrl + '&t=' + Date.now(), { headers });
-
-        if (!resp.ok) {
-            if (resp.status === 404) {
-                if (!silent) alert('No backup file found on GitHub.\nTry pushing your data first.');
-                if (status) {
-                    status.textContent = '⚠️ No backup found on GitHub';
-                    status.style.color = '#f59e0b';
-                }
-                return false;
-            }
-            throw new Error(`HTTP ${resp.status}`);
-        }
-
-        const fileInfo = await resp.json();
-        const jsonContent = decodeURIComponent(escape(atob(fileInfo.content)));
-        const data = JSON.parse(jsonContent);
-        
-        if (!data || !data._meta) {
-            if (!silent) alert('Invalid backup format on GitHub.');
-            return false;
-        }
-
-        if (silent) {
-            _restoreData(data, 'GitHub (auto)', true);
-        } else {
-            const txCount = data.transactions ? data.transactions.length : 0;
-            const exportDate = data._meta.exportedAt ? new Date(data._meta.exportedAt).toLocaleString() : 'unknown';
-            if (confirm(`Found backup on GitHub:\n${txCount} transactions\nExported: ${exportDate}\n\nRestore this data? (Overwrites local data)`)) {
-                _restoreData(data, 'GitHub');
-            } else {
-                if (status) {
-                    status.textContent = '⚠️ Restore cancelled by user';
-                    status.style.color = '#f59e0b';
-                }
-            }
-        }
-        return true;
-    } catch (err) {
-        console.error('GitHub data load failed:', err);
-        if (!silent) alert('Failed to load from GitHub: ' + err.message);
-        if (status) {
-            status.textContent = '❌ GitHub load failed';
-            status.style.color = '#ef4444';
-        }
-        return false;
-    }
+let myChart;
+function updateChart(data) {
+    const curr = document.getElementById('chart-currency-toggle').value; const exps = data.filter(d => d.type === 'expense' && d.curr === curr && d.cat !== 'Transfer'); const totals = {}; exps.forEach(d => totals[d.cat] = (totals[d.cat] || 0) + d.amt);
+    const ctx = document.getElementById('expense-pie-chart').getContext('2d'); if (myChart) myChart.destroy();
+    const chartColors = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6', '#EC4899', '#14B8A6', '#6366F1'];
+    myChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(totals), datasets: [{ data: Object.values(totals), backgroundColor: chartColors, borderWidth: 2, borderColor: '#0B1325', hoverOffset: 6 }] }, options: { plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(11, 19, 37, 0.9)', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, cornerRadius: 12, displayColors: true } }, cutout: '75%', responsive: true, maintainAspectRatio: false } });
+    document.getElementById('expense-details').innerHTML = Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([k, v], i) => `<div class="flex justify-between items-center text-xs py-2 border-b border-white/5 last:border-0"><div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style="background-color: ${chartColors[i % chartColors.length]}"></div><span class="text-slate-300 font-medium">${k}</span></div><span class="font-mono text-white font-bold bg-white/5 px-2 py-0.5 rounded-md">${fmt(v, curr)}</span></div>`).join('');
 }
 
-// Fallback manual Export to File
-function exportDataToFile() {
-    const data = {
-        _meta: { exportedAt: new Date().toISOString(), version: 2, source: 'MoneyTracker' },
-        transactions: getTransactions(),
-        config: JSON.parse(localStorage.getItem('moneyTrackerConfig') || 'null'),
-        usd_kurs: parseFloat(localStorage.getItem('usd_kurs') || '16000')
-    };
+let trendChart;
+function updateTrendChart(data) {
+    const ctx = document.getElementById('trend-line-chart').getContext('2d');
+    if (trendChart) trendChart.destroy();
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const rawData = data.filter(d => d.type === 'expense' && d.cat !== 'Transfer' && new Date(d.date) >= thirtyDaysAgo);
+    const dailyTotals = {}; rawData.forEach(d => { const date = d.date; const amountIDR = d.curr === 'USD' ? d.amt * USD_KURS : d.amt; dailyTotals[date] = (dailyTotals[date] || 0) + amountIDR; });
+    const sortedDates = Object.keys(dailyTotals).sort(); const values = sortedDates.map(date => dailyTotals[date]);
+    const labels = sortedDates.map(d => { const dateObj = new Date(d); return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
 
-    const json = JSON.stringify(data, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'local-data.json';
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    trendChart = new Chart(ctx, { 
+        type: 'line', 
+        data: { 
+            labels: labels, 
+            datasets: [{ 
+                label: 'Total Expenses (IDR)', 
+                data: values, 
+                borderColor: '#4F46E5', 
+                backgroundColor: (context) => { 
+                    const chartCtx = context.chart.ctx; 
+                    const gradient = chartCtx.createLinearGradient(0, 0, 0, 300); 
+                    gradient.addColorStop(0, 'rgba(79, 70, 229, 0.5)'); 
+                    gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)'); 
+                    return gradient; 
+                }, 
+                borderWidth: 3, 
+                tension: 0.4, 
+                pointRadius: 0, 
+                pointHoverRadius: 6, 
+                pointBackgroundColor: '#4F46E5', 
+                pointBorderColor: '#fff', 
+                pointBorderWidth: 2, 
+                fill: true 
+            }] 
+        }, 
+        options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            interaction: { mode: 'index', intersect: false }, 
+            plugins: { 
+                legend: { display: false }, 
+                tooltip: { backgroundColor: 'rgba(11, 19, 37, 0.9)', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, cornerRadius: 12 } 
+            }, 
+            scales: { 
+                x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10, family: "'Inter', sans-serif" } } }, 
+                y: { border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { color: '#64748b', font: { size: 10, family: "'JetBrains Mono', monospace" }, callback: function (value) { return value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' : (value / 1000).toFixed(0) + 'k'; } } } 
+            } 
+        } 
+    });
 }
 
-// Fallback manual Import from File
-function importDataFromFile() {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = '.json';
-    input.style.display = 'none';
-    document.body.appendChild(input);
+function renderDashWidgets(data) {
+    const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const recent = sortedData.slice(0, 5);
+    document.getElementById('dash-recent-list').innerHTML = recent.map(d => `
+    <div class="bg-black/20 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-white/10 transition">
+        <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${d.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">
+                <i class="fas ${d.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
+            </div>
+            <div>
+                <div class="text-sm font-bold text-slate-200 truncate max-w-[150px] sm:max-w-[200px]">${d.desc}</div>
+                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">${d.date} • ${d.cat}</div>
+            </div>
+        </div>
+        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">
+            ${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}
+        </div>
+    </div>
+`).join('');
+    if (recent.length === 0) document.getElementById('dash-recent-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No activity yet</div>';
 
-    input.addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+    const now = new Date();
+    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const thisMonthExps = data.filter(d => d.type === 'expense' && d.cat !== 'Transfer' && d.date.startsWith(thisMonth));
 
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            try {
-                const data = JSON.parse(event.target.result);
-                _restoreData(data, 'file');
-            } catch (err) {
-                alert('Invalid JSON file: ' + err.message);
-            }
-        };
-        reader.readAsText(file);
-        document.body.removeChild(input);
+    let totalThisMonth = 0;
+    const catTotals = {};
+    thisMonthExps.forEach(d => {
+        const amtIDR = d.curr === 'USD' ? d.amt * USD_KURS : d.amt;
+        catTotals[d.cat] = (catTotals[d.cat] || 0) + amtIDR;
+        totalThisMonth += amtIDR;
     });
 
-    input.click();
+    const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const chartColors = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#F43F5E'];
+
+    document.getElementById('dash-top-cat-list').innerHTML = topCats.map((c, i) => {
+        const percentage = totalThisMonth > 0 ? (c[1] / totalThisMonth) * 100 : 0;
+        return `
+    <div class="space-y-1.5">
+        <div class="flex justify-between items-end">
+            <span class="text-xs font-bold text-slate-300">${c[0]}</span>
+            <span class="font-mono text-xs text-white bg-white/5 px-2 py-0.5 rounded-md border border-white/5">${fmt(c[1], 'IDR')}</span>
+        </div>
+        <div class="w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
+            <div class="h-full rounded-full" style="width: ${percentage}%; background-color: ${chartColors[i % chartColors.length]}; box-shadow: 0 0 10px ${chartColors[i % chartColors.length]}80;"></div>
+        </div>
+    </div>`;
+    }).join('');
+    if (topCats.length === 0) document.getElementById('dash-top-cat-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No expenses this month</div>';
 }
 
-// Internal: Apply imported data to localStorage
-function _restoreData(data, source, silent = false) {
-    let restoredParts = [];
-
-    if (data.transactions && Array.isArray(data.transactions)) {
-        saveTransactions(data.transactions);
-        restoredParts.push(`${data.transactions.length} transactions`);
-    }
-
-    if (data.config) {
-        localStorage.setItem('moneyTrackerConfig', JSON.stringify(data.config));
-        restoredParts.push('config/balances');
-    }
-
-    if (data.usd_kurs) {
-        saveKurs(data.usd_kurs);
-        restoredParts.push(`kurs: ${formatMoney(data.usd_kurs)}`);
-    }
-
-    // Refresh UI
-    updateBalance();
-    displayTransactions();
-    updateRatesDisplay();
-
-    const backupStatus = document.getElementById('backupStatus');
-    if (backupStatus) {
-        backupStatus.textContent = `✅ Restored from ${source}: ${restoredParts.join(', ')} — ${new Date().toLocaleTimeString()}`;
-        backupStatus.style.color = '#10b981';
-    }
-
-    if (!silent) {
-        alert(`Data restored from ${source}!\n${restoredParts.join('\n')}`);
-    } else {
-        console.log(`Auto-restored from ${source}:`, restoredParts.join(', '));
-    }
-}
-
-
-// Toggle auto-sync setting
-function toggleAutoSync(checkbox) {
-    localStorage.setItem('auto_sync_repo', checkbox.checked);
-}
-
-
-
-// Export to Excel (.xlsx) matching Keuangan.xlsx structure
-function exportToExcel() {
-    const transactions = getTransactions();
-    const config = getConfig();
-    const { totalIncome, totalExpense, balance, methodTotals } = calculateTotals();
-
-    if (transactions.length === 0) {
-        alert('No transactions to export!');
-        return;
-    }
-
-    // 1. Create workbook
-    const wb = XLSX.utils.book_new();
-
-    // 2. Prepare Money_tracker sheet
-    const trackerData = transactions.map((t, index) => ({
-        'No': index + 1,
-        'Date': new Date(t.date).toISOString().split('T')[0],
-        'Jenis': t.type === 'income' ? 'Income' : 'Outcome',
-        'Metode Pembayaran': t.paymentMethod,
-        'Kategori': t.category,
-        'Mata uang': 'IDR',
-        'Keterangan': t.description,
-        'Jumlah': t.amount
-    }));
-    const wsTracker = XLSX.utils.json_to_sheet(trackerData);
-    XLSX.utils.book_append_sheet(wb, wsTracker, 'Money_tracker');
-
-    // 3. Prepare Rasio sheet
-    const rasioData = config.paymentMethods.map(m => {
-        const currentTotal = methodTotals[m.name] || 0;
-        const percentage = balance !== 0 ? (currentTotal / balance) : 0;
-        return {
-            'Item': m.name,
-            'IDR': currentTotal,
-            'USD': 0, // Placeholder
-            'Nilai': 1,
-            'Harga saat ini': currentTotal,
-            'Total': currentTotal,
-            'Presentase': percentage
-        };
-    });
-    const wsRasio = XLSX.utils.json_to_sheet(rasioData);
-    XLSX.utils.book_append_sheet(wb, wsRasio, 'Rasio');
-
-    // 4. Prepare List sheet
-    const maxLen = Math.max(config.paymentMethods.length, config.categories.length);
-    const listData = [];
-    for (let i = 0; i < maxLen; i++) {
-        listData.push({
-            'Metode': config.paymentMethods[i] ? config.paymentMethods[i].name : '',
-            'Jenis': i < 2 ? (i === 0 ? 'Income' : 'Outcome') : '',
-            'Mata Uang': i === 0 ? 'IDR' : (i === 1 ? 'USD' : ''),
-            'Outcome List': config.categories[i] ? config.categories[i].name : ''
-        });
-    }
-    const wsList = XLSX.utils.json_to_sheet(listData);
-    XLSX.utils.book_append_sheet(wb, wsList, 'List');
-
-    // 5. Download the file
-    const filename = `Keuangan-${new Date().toISOString().split('T')[0]}.xlsx`;
-    XLSX.writeFile(wb, filename);
-
-    // Show success message
-    alert(`Exported ${transactions.length} transactions to ${filename}\n\nMatching Keuangan.xlsx format!`);
-}
-
-// Initialize the app
-function init() {
-    // Populate select elements if needed
-    if (document.getElementById('category')) {
-        populateSelects();
-    }
-
-    // Update balance and display transactions if on dashboard
-    if (document.getElementById('totalBalance')) {
-        updateBalance();
-    }
-    if (document.getElementById('transactionsList')) {
-        displayTransactions();
-    }
-
-    // Handle type button clicks
-    const typeButtons = document.querySelectorAll('.type-btn');
-    typeButtons.forEach(button => {
-        button.addEventListener('click', function () {
-            typeButtons.forEach(btn => btn.classList.remove('active'));
-            this.classList.add('active');
-            document.getElementById('type').value = this.dataset.type;
-            populateSelects(); // Refresh categories when type changes
-        });
-    });
-
-    // Handle form submission
-    const form = document.getElementById('transactionForm');
-
-    // Set default date to today
-    const dateInput = document.getElementById('date');
-    if (dateInput) {
-        dateInput.valueAsDate = new Date();
-    }
-
-    // Live thousand separator on amount input
-    const amountInput = document.getElementById('amount');
-    if (amountInput) {
-        amountInput.addEventListener('input', function () {
-            const cursorPos = this.selectionStart;
-            const oldLen = this.value.length;
-            this.value = addThousandSeparator(this.value);
-            const newLen = this.value.length;
-            // Adjust cursor position after formatting
-            this.setSelectionRange(cursorPos + (newLen - oldLen), cursorPos + (newLen - oldLen));
-        });
-    }
-    // Handle new transaction
-    if (form) {
-        form.addEventListener('submit', function (e) {
-            e.preventDefault();
-            const dateInput = document.getElementById('date');
-            const date = dateInput.value;
-            const description = document.getElementById('description').value;
-            const amountInput = document.getElementById('amount');
-            const amount = parseFormattedNumber(amountInput.value);
-            const category = document.getElementById('category').value;
-            const type = document.getElementById('type').value;
-            const paymentMethod = document.getElementById('paymentMethod').value;
-
-            if (description && amount > 0 && category && paymentMethod) {
-                addTransaction(date, description, amount, category, type, paymentMethod);
-                form.reset();
-
-                // Re-set default date
-                if (dateInput) dateInput.valueAsDate = new Date();
-
-                // Reset type to expense
-                typeButtons.forEach(btn => btn.classList.remove('active'));
-                typeButtons[0].classList.add('active');
-                document.getElementById('type').value = 'expense';
-
-                // Show success animation
-                const submitBtn = document.querySelector('.submit-btn');
-                if (submitBtn) {
-                    submitBtn.textContent = '✓ Added!';
-                    let originalBg = submitBtn.style.background; // Declare originalBg
-                    submitBtn.style.background = '#2ed573';
-
-                    setTimeout(() => {
-                        submitBtn.textContent = 'Add Transaction';
-                        submitBtn.style.background = originalBg;
-                    }, 1500);
-                }
-            }
-        });
-    }
-
-    // Handle clear all button
-    const clearBtn = document.getElementById('clearAll');
-    if (clearBtn) clearBtn.addEventListener('click', clearAllTransactions);
-
-    // Handle export button
-    const exportBtn = document.getElementById('exportExcel');
-    if (exportBtn) exportBtn.addEventListener('click', exportToExcel);
-
-
-    // Settings toggle removed (now a separate page)
-
-    // Auto-update rates display if on settings page
-    if (document.getElementById('currentRatesDisplay')) {
-        updateRatesDisplay();
-    }
-
-    // Handle config import
-    // Handle config import
-    const importInput = document.getElementById('importConfig');
-    if (importInput) {
-        importInput.addEventListener('change', function (e) {
-            if (e.target.files.length > 0) {
-                importConfig(e.target.files[0]);
-            }
-        });
-    }
-
-    // Handle Rate Sync Buttons
-    const syncKursBtn = document.getElementById('syncKurs');
-    const syncGoldBtn = document.getElementById('syncGold');
-    const syncAllBtn = document.getElementById('syncAll');
-
-    if (syncKursBtn) syncKursBtn.addEventListener('click', fetchKurs);
-    if (syncGoldBtn) syncGoldBtn.addEventListener('click', fetchGoldPrice);
-    if (syncAllBtn) syncAllBtn.addEventListener('click', syncAllRates);
-
-    // PIN Login Integration
-    checkLogin();
-    updateSecurityUI();
-    updateGitHubUI();
-
-    // Auto-sync data if empty
-    autoSyncOnStartup();
-
-    // Listen for Enter key on PIN input
-    const loginPinInput = document.getElementById('login-pin');
-    if (loginPinInput) {
-        loginPinInput.addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') handleLogin();
-        });
-    }
-}
-
-// Start the app when page loads
-document.addEventListener('DOMContentLoaded', () => init());
-
-// Automatically sync from cloud if authorized
-async function autoSyncOnStartup() {
-    console.log("Startup check: Attempting cloud sync...");
-
-    // Auto-load from GitHub if local data is empty and auto-sync is enabled
-    const autoSync = localStorage.getItem('auto_sync_repo') !== 'false';
-    const hasTransactions = getTransactions().length > 0;
-
-    if (autoSync && !hasTransactions) {
-        console.log("No local transactions found. Trying GitHub backup...");
-        const loaded = await loadDataFromGitHub(true);
-        if (loaded) {
-            console.log("Data restored from GitHub automatically.");
-            return;
-        }
-    }
-}
-
-// Hash the PIN using SHA-256
-async function hashPin(pin) {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(pin);
-    const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-    const hashArray = Array.from(new Uint8Array(hashBuffer));
-    return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-}
-
-// Check if app is locked and handle login
-async function checkLogin() {
-    const storedHash = localStorage.getItem('pin_hash');
-    const loginScreen = document.getElementById('login-screen');
-
-    if (storedHash) {
-        loginScreen.style.display = 'flex';
-        // Hide container content to prevent layout shift or visual leak
-        document.querySelector('.container').style.opacity = '0';
-    } else {
-        loginScreen.style.display = 'none';
-        document.querySelector('.container').style.opacity = '1';
-    }
-}
-
-// Handle Login Attempt
-async function handleLogin() {
-    const pinInput = document.getElementById('login-pin');
-    const errorMsg = document.getElementById('login-error');
-    const inputHash = await hashPin(pinInput.value);
-    const storedHash = localStorage.getItem('pin_hash');
-
-    if (inputHash === storedHash) {
-        document.getElementById('login-screen').style.display = 'none';
-        document.querySelector('.container').style.opacity = '1';
-        pinInput.value = '';
-        errorMsg.style.display = 'none';
-    } else {
-        errorMsg.style.display = 'block';
-        pinInput.value = '';
-        pinInput.focus();
-    }
-}
-
-// Security Management in Settings
-function togglePinSetup() {
-    const form = document.getElementById('pin-setup-form');
-    form.style.display = form.style.display === 'none' ? 'block' : 'none';
-}
-
-async function saveNewPin() {
-    const pinInput = document.getElementById('new-pin');
-    const pin = pinInput.value;
-
-    if (!/^\d+$/.test(pin)) {
-        alert("Please enter a numeric PIN.");
-        return;
-    }
-
-    const hash = await hashPin(pin);
-    localStorage.setItem('pin_hash', hash);
-    pinInput.value = '';
-    togglePinSetup();
-    updateSecurityUI();
-    alert("PIN set successfully!");
-}
-
-function removePin() {
-    if (confirm("Are you sure you want to remove the PIN? Your data will no longer be protected.")) {
-        localStorage.removeItem('pin_hash');
-        updateSecurityUI();
-        alert("PIN removed.");
-    }
-}
-
-function updateSecurityUI() {
-    const storedHash = localStorage.getItem('pin_hash');
-    const setupBtn = document.getElementById('setup-pin-btn');
-    const removeBtn = document.getElementById('remove-pin-btn');
-    const autoSyncToggle = document.getElementById('auto-sync-toggle');
-
-    if (storedHash) {
-        setupBtn.textContent = "Change PIN";
-        removeBtn.style.display = 'block';
-    } else {
-        setupBtn.textContent = "Setup PIN";
-        removeBtn.style.display = 'none';
-    }
-
-    if (autoSyncToggle) {
-        autoSyncToggle.checked = localStorage.getItem('auto_sync_repo') !== 'false';
-    }
-}
-
-// ============================================================
-// Spreadsheet Sync (Google Apps Script Webhook)
-// ============================================================
-
-function getGASUrl() {
-    return localStorage.getItem('gas_webhook_url') || '';
-}
-
-function saveGASUrl() {
-    const url = document.getElementById('gas-webhook-url').value.trim();
-    if (!url) {
-        alert("Please enter a valid URL.");
-        return;
-    }
-    localStorage.setItem('gas_webhook_url', url);
-    alert('Webhook URL saved!');
-}
+// ---------------- Google Sheets Sync Logic ----------------
 
 async function syncToSpreadsheet() {
     const webhookUrl = getGASUrl();
     const status = document.getElementById('spreadsheet-status');
 
     if (!webhookUrl) {
-        alert("Please configure your Google Apps Script Webhook URL first in Settings.");
+        if(status) status.innerHTML = "<span class='text-rose-400'>Webhook URL empty. Please set in settings.</span>";
         return;
     }
 
     if (status) {
-        status.textContent = '⏳ Sending to Spreadsheet...';
+        status.innerHTML = '<div class="loader w-4 h-4 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div><span class="align-middle">Sending to Spreadsheet...</span>';
         status.style.color = 'var(--text-muted)';
     }
 
@@ -1829,7 +561,6 @@ async function syncToSpreadsheet() {
         });
 
         // Use no-cors mode to completely bypass strict browser CORS policies on POST redirects
-        // This means we can't read the JSON response, but the data is guaranteed to be sent.
         await fetch(webhookUrl, {
             method: 'POST',
             mode: 'no-cors',
@@ -1837,7 +568,6 @@ async function syncToSpreadsheet() {
             body: 'data=' + encodeURIComponent(payload)
         });
 
-        // If fetch didn't throw a network error, it succeeded opaquely
         if (status) {
             status.textContent = `✅ Synced to Spreadsheet at ${new Date().toLocaleTimeString()}`;
             status.style.color = '#10b981';
@@ -1849,81 +579,50 @@ async function syncToSpreadsheet() {
             status.textContent = `❌ Sync failed: ${err.message}`;
             status.style.color = '#ef4444';
         }
-        alert("Gagal Sinkronisasi: " + err.message);
     }
 }
 
-async function loadFromSpreadsheet(silent = false) {
+async function loadFromSpreadsheet() {
     const webhookUrl = getGASUrl();
     const status = document.getElementById('spreadsheet-status');
 
-    if (!webhookUrl) return false;
+    if (!webhookUrl) {
+        alert("Please configure your Google Apps Script Webhook URL first in Settings.");
+        return;
+    }
 
-    if (status && !silent) {
-        status.textContent = '⏳ Loading from Spreadsheet...';
-        status.style.color = 'var(--text-muted)';
+    const confirmed = confirm("WARNING: This will overwrite your current local data with the data from Google Sheets. Are you sure you want to proceed?");
+    if (!confirmed) return;
+
+    if (status) {
+        status.innerHTML = '<div class="loader w-4 h-4 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div><span class="align-middle">Downloading from Spreadsheet...</span>';
     }
 
     try {
-        // Send a GET request to Webhook or POST with action: 'pull'
-        // Using GET with redirect follow works perfectly in GAS
-        const urlWithParam = webhookUrl + (webhookUrl.includes('?') ? '&' : '?') + 'action=pull&t=' + Date.now();
-        const resp = await fetch(urlWithParam);
+        const pullUrl = webhookUrl + "?action=pull";
+        const resp = await fetch(pullUrl);
         const result = await resp.json();
 
         if (result.status === 'success') {
-            if (result.transactions && result.transactions.length > 0) {
-                saveTransactions(result.transactions);
-                updateBalance();
-                displayTransactions();
-                
-                if (status) {
-                    status.textContent = `✅ Loaded ${result.transactions.length} rows at ${new Date().toLocaleTimeString()}`;
-                    status.style.color = '#10b981';
-                }
-                if (!silent) alert(`Berhasil memuat ${result.transactions.length} transaksi dari Spreadsheet!`);
-                return true;
-            } else {
-                if (!silent) alert('Spreadsheet kosong atau tidak ada transaksi.');
-                if (status) status.textContent = '⚠️ Spreadsheet kosong';
+            const newTxs = result.transactions || [];
+            saveTransactions(newTxs);
+            fetchData();
+            
+            if (status) {
+                status.textContent = `✅ Loaded ${newTxs.length} transactions from Spreadsheet`;
+                status.style.color = '#10b981';
             }
+            showToast("Successfully loaded from Google Sheets", "success");
         } else {
-            throw new Error(result.message || 'Failed to load');
+            throw new Error(result.message || "Unknown error during pull");
         }
+
     } catch (err) {
-        console.error("Spreadsheet Load Error:", err);
+        console.error("Pull from Spreadsheet Error:", err);
         if (status) {
             status.textContent = `❌ Load failed: ${err.message}`;
             status.style.color = '#ef4444';
         }
-        if (!silent) alert("Gagal memuat dari Spreadsheet. Periksa URL atau koneksi Anda.");
-        return false;
+        alert("Gagal menarik data: " + err.message);
     }
 }
-
-// Modify addTransaction to trigger automatic webhook push
-const originalAddTransaction = addTransaction;
-addTransaction = function (...args) {
-    originalAddTransaction.apply(this, args);
-    if (getGASUrl() && navigator.onLine) {
-        // Automatically sync to spreadsheet in the background
-        syncToSpreadsheet();
-    }
-};
-
-// Auto-fill URL on load and attempt auto-load if local data is empty
-const originalInit = init;
-init = function () {
-    originalInit.apply(this, arguments);
-    const url = getGASUrl();
-    const input = document.getElementById('gas-webhook-url');
-    if (input && url) {
-        input.value = url;
-    }
-    
-    // Auto pull from Spreadsheet if local is empty
-    if (url && getTransactions().length === 0) {
-        loadFromSpreadsheet(true);
-    }
-};
-
