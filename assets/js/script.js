@@ -1835,7 +1835,13 @@ async function syncToSpreadsheet() {
             body: 'data=' + encodeURIComponent(payload)
         });
 
-        const result = await resp.json();
+        const textResult = await resp.text();
+        let result;
+        try {
+            result = JSON.parse(textResult);
+        } catch (e) {
+            throw new Error("Server tidak merespons dengan JSON valid. Mungkin Anda salah menyalin URL, salah mengatur Permission ke 'Anyone', atau Anda perlu mendeploy sebagai 'New Version'. Response server: " + textResult.substring(0, 100));
+        }
         
         if (result.status === 'success') {
             if (status) {
@@ -1849,9 +1855,10 @@ async function syncToSpreadsheet() {
     } catch (err) {
         console.error("Spreadsheet Sync Error:", err);
         if (status) {
-            status.textContent = `❌ Sync failed: ${err.message}`;
+            status.textContent = `❌ Sync failed`;
             status.style.color = '#ef4444';
         }
+        alert("Gagal Sinkronisasi: " + err.message);
     }
 }
 
