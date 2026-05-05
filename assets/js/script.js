@@ -1187,6 +1187,176 @@ function resetAll() {
     }
 }
 
+// ============================================================
+// Data Backup / Restore — GitHub Integration
+// ============================================================
+
+const GITHUB_REPO = 'Yoggie24/Xpense_tracker';
+const GITHUB_BRANCH = 'main';
+const BACKUP_FILENAME = 'data/local-data.json';
+const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${BACKUP_FILENAME}`;
+
+// Export all local data to a downloadable JSON file
+function exportDataToFile() {
+    const data = {
+        _meta: {
+            exportedAt: new Date().toISOString(),
+            version: 2,
+            source: 'MoneyTracker'
+        },
+        transactions: getTransactions(),
+        config: JSON.parse(localStorage.getItem('moneyTrackerConfig') || 'null'),
+        usd_kurs: parseFloat(localStorage.getItem('usd_kurs') || '16000')
+    };
+
+    const json = JSON.stringify(data, null, 2);
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'local-data.json';
+    link.style.display = 'none';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    const backupStatus = document.getElementById('backupStatus');
+    if (backupStatus) {
+        backupStatus.textContent = `✅ Exported ${data.transactions.length} transactions — ${new Date().toLocaleTimeString()}`;
+        backupStatus.style.color = '#10b981';
+    }
+
+    alert(`Data exported!\n${data.transactions.length} transactions\n\n📁 Save the file to:\n${BACKUP_FILENAME}\nin your project folder, then run push_to_github.bat`);
+}
+
+// Import data from a local JSON file
+function importDataFromFile() {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = '.json';
+    input.style.display = 'none';
+    document.body.appendChild(input);
+
+    input.addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = function(event) {
+            try {
+                const data = JSON.parse(event.target.result);
+                _restoreData(data, 'file');
+            } catch (err) {
+                alert('Invalid JSON file: ' + err.message);
+            }
+        };
+        reader.readAsText(file);
+        document.body.removeChild(input);
+    });
+
+    input.click();
+}
+
+// Load data from GitHub raw URL
+async function loadDataFromGitHub(silent = false) {
+    const backupStatus = document.getElementById('backupStatus');
+    if (backupStatus) {
+        backupStatus.textContent = '⏳ Loading from GitHub...';
+        backupStatus.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        // Add cache-buster to avoid stale data
+        const url = GITHUB_RAW_URL + '?t=' + Date.now();
+        const resp = await fetch(url);
+
+        if (!resp.ok) {
+            if (resp.status === 404) {
+                if (!silent) alert('No backup file found on GitHub.\nExport your data first, save to data/local-data.json, and push.');
+                if (backupStatus) {
+                    backupStatus.textContent = '⚠️ No backup found on GitHub';
+                    backupStatus.style.color = '#f59e0b';
+                }
+                return false;
+            }
+            throw new Error('HTTP ' + resp.status);
+        }
+
+        const data = await resp.json();
+        
+        if (!data || !data._meta) {
+            if (!silent) alert('Invalid backup format on GitHub.');
+            return false;
+        }
+
+        if (silent) {
+            // Auto-restore silently
+            _restoreData(data, 'GitHub (auto)', true);
+        } else {
+            const txCount = data.transactions ? data.transactions.length : 0;
+            const exportDate = data._meta.exportedAt ? new Date(data._meta.exportedAt).toLocaleString() : 'unknown';
+            if (confirm(`Found backup on GitHub:\n${txCount} transactions\nExported: ${exportDate}\n\nRestore this data? (Overwrites local data)`)) {
+                _restoreData(data, 'GitHub');
+            }
+        }
+        return true;
+    } catch (err) {
+        console.error('GitHub data load failed:', err);
+        if (!silent) alert('Failed to load from GitHub: ' + err.message);
+        if (backupStatus) {
+            backupStatus.textContent = '❌ GitHub load failed';
+            backupStatus.style.color = '#ef4444';
+        }
+        return false;
+    }
+}
+
+// Internal: Apply imported data to localStorage
+function _restoreData(data, source, silent = false) {
+    let restoredParts = [];
+
+    if (data.transactions && Array.isArray(data.transactions)) {
+        saveTransactions(data.transactions);
+        restoredParts.push(`${data.transactions.length} transactions`);
+    }
+
+    if (data.config) {
+        localStorage.setItem('moneyTrackerConfig', JSON.stringify(data.config));
+        restoredParts.push('config/balances');
+    }
+
+    if (data.usd_kurs) {
+        saveKurs(data.usd_kurs);
+        restoredParts.push(`kurs: ${formatMoney(data.usd_kurs)}`);
+    }
+
+    // Refresh UI
+    updateBalance();
+    displayTransactions();
+    updateRatesDisplay();
+
+    const backupStatus = document.getElementById('backupStatus');
+    if (backupStatus) {
+        backupStatus.textContent = `✅ Restored from ${source}: ${restoredParts.join(', ')} — ${new Date().toLocaleTimeString()}`;
+        backupStatus.style.color = '#10b981';
+    }
+
+    if (!silent) {
+        alert(`Data restored from ${source}!\n${restoredParts.join('\n')}`);
+    } else {
+        console.log(`Auto-restored from ${source}:`, restoredParts.join(', '));
+    }
+}
+
+// Toggle auto-sync setting
+function toggleAutoSync(checkbox) {
+    localStorage.setItem('auto_sync_repo', checkbox.checked);
+}
+
+
+
 // Export to Excel (.xlsx) matching Keuangan.xlsx structure
 function exportToExcel() {
     const transactions = getTransactions();
@@ -1400,6 +1570,21 @@ document.addEventListener('DOMContentLoaded', () => init());
 // Automatically sync from cloud if authorized
 async function autoSyncOnStartup() {
     console.log("Startup check: Attempting cloud sync...");
+
+    // Auto-load from GitHub if local data is empty and auto-sync is enabled
+    const autoSync = localStorage.getItem('auto_sync_repo') !== 'false';
+    const hasTransactions = getTransactions().length > 0;
+
+    if (autoSync && !hasTransactions) {
+        console.log("No local transactions found. Trying GitHub backup...");
+        const loaded = await loadDataFromGitHub(true);
+        if (loaded) {
+            console.log("Data restored from GitHub automatically.");
+            return;
+        }
+    }
+
+    // Fallback: try GSheet sync
     await fetchGSheetData('all');
 }
 

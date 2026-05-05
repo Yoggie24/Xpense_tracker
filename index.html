@@ -306,6 +306,19 @@
 
                 <hr class="settings-divider">
 
+                <!-- Data Backup -->
+                <div class="settings-section">
+                    <h3>💾 Data Backup</h3>
+                    <div class="sync-btn-row">
+                        <button class="sync-btn" onclick="exportDataToFile()">📤 Export</button>
+                        <button class="sync-btn" onclick="importDataFromFile()">📥 Import</button>
+                        <button class="sync-btn sync-btn-all" onclick="loadDataFromGitHub()">🌐 Load from GitHub</button>
+                    </div>
+                    <div id="backupStatus" class="sync-status">Save exported file to data/local-data.json, then push</div>
+                </div>
+
+                <hr class="settings-divider">
+
                 <!-- Security -->
                 <div class="settings-section">
                     <h3>🔒 Security</h3>
@@ -327,6 +340,7 @@
                         </div>
                     </div>
                 </div>
+
             </div>
         </div>
 
