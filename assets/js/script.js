@@ -1828,11 +1828,11 @@ async function syncToSpreadsheet() {
             action: 'push'
         });
 
-        // Use text/plain to avoid CORS OPTIONS preflight
+        // Use form-urlencoded to guarantee payload delivery and avoid CORS dropping body
         const resp = await fetch(webhookUrl, {
             method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: payload
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+            body: 'data=' + encodeURIComponent(payload)
         });
 
         const result = await resp.json();
