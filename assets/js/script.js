@@ -1188,16 +1188,47 @@ function resetAll() {
 }
 
 // ============================================================
-// Data Backup / Restore — GitHub Integration
+// Data Backup / Restore — Direct GitHub API Sync
 // ============================================================
 
 const GITHUB_REPO = 'Yoggie24/Xpense_tracker';
 const GITHUB_BRANCH = 'main';
 const BACKUP_FILENAME = 'data/local-data.json';
-const GITHUB_RAW_URL = `https://raw.githubusercontent.com/${GITHUB_REPO}/${GITHUB_BRANCH}/${BACKUP_FILENAME}`;
 
-// Export all local data to a downloadable JSON file
-function exportDataToFile() {
+function getGitHubToken() {
+    return localStorage.getItem('github_token') || '';
+}
+
+function saveGitHubToken() {
+    const token = document.getElementById('github-token-input').value.trim();
+    localStorage.setItem('github_token', token);
+    alert('GitHub Token saved!');
+    updateGitHubUI();
+}
+
+function updateGitHubUI() {
+    const token = getGitHubToken();
+    const input = document.getElementById('github-token-input');
+    if (input && token) {
+        input.value = token;
+    }
+}
+
+// Push local data directly to GitHub using REST API
+async function pushToGitHub() {
+    const token = getGitHubToken();
+    const status = document.getElementById('backupStatus');
+
+    if (!token) {
+        alert("Please configure your GitHub Personal Access Token in Settings first.");
+        return;
+    }
+
+    if (status) {
+        status.textContent = '⏳ Pushing to GitHub...';
+        status.style.color = 'var(--text-muted)';
+    }
+
     const data = {
         _meta: {
             exportedAt: new Date().toISOString(),
@@ -1209,10 +1240,149 @@ function exportDataToFile() {
         usd_kurs: parseFloat(localStorage.getItem('usd_kurs') || '16000')
     };
 
+    const contentStr = JSON.stringify(data, null, 2);
+    // btoa requires latin1 string, so we encode URI components first if there are special characters
+    const encodedContent = btoa(unescape(encodeURIComponent(contentStr)));
+
+    try {
+        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${BACKUP_FILENAME}`;
+        
+        // 1. Get current file SHA (required for updating an existing file)
+        let sha = null;
+        const getResp = await fetch(apiUrl + `?ref=${GITHUB_BRANCH}`, {
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json'
+            }
+        });
+
+        if (getResp.ok) {
+            const fileInfo = await getResp.json();
+            sha = fileInfo.sha;
+        } else if (getResp.status !== 404) {
+            throw new Error(`Failed to get current file: ${getResp.status}`);
+        }
+
+        // 2. Put new content
+        const body = {
+            message: `Auto-sync data: ${new Date().toLocaleString()}`,
+            content: encodedContent,
+            branch: GITHUB_BRANCH
+        };
+        if (sha) body.sha = sha;
+
+        const putResp = await fetch(apiUrl, {
+            method: 'PUT',
+            headers: {
+                'Authorization': `token ${token}`,
+                'Accept': 'application/vnd.github.v3+json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(body)
+        });
+
+        if (!putResp.ok) {
+            const errData = await putResp.json();
+            throw new Error(`GitHub API Error: ${errData.message}`);
+        }
+
+        if (status) {
+            status.textContent = `✅ Successfully pushed to GitHub at ${new Date().toLocaleTimeString()}`;
+            status.style.color = '#10b981';
+        }
+        alert("Data successfully synced to GitHub!");
+
+    } catch (err) {
+        console.error("GitHub Push Error:", err);
+        if (status) {
+            status.textContent = `❌ Push failed: ${err.message}`;
+            status.style.color = '#ef4444';
+        }
+        alert(`Failed to push to GitHub:\n${err.message}`);
+    }
+}
+
+// Load data from GitHub via REST API
+async function loadDataFromGitHub(silent = false) {
+    const token = getGitHubToken();
+    const status = document.getElementById('backupStatus');
+
+    if (status) {
+        status.textContent = '⏳ Fetching from GitHub...';
+        status.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        const apiUrl = `https://api.github.com/repos/${GITHUB_REPO}/contents/${BACKUP_FILENAME}?ref=${GITHUB_BRANCH}`;
+        
+        const headers = {
+            'Accept': 'application/vnd.github.v3+json'
+        };
+        // Use token if available to access private repos
+        if (token) headers['Authorization'] = `token ${token}`;
+
+        // Add cache-buster
+        const resp = await fetch(apiUrl + '&t=' + Date.now(), { headers });
+
+        if (!resp.ok) {
+            if (resp.status === 404) {
+                if (!silent) alert('No backup file found on GitHub.\nTry pushing your data first.');
+                if (status) {
+                    status.textContent = '⚠️ No backup found on GitHub';
+                    status.style.color = '#f59e0b';
+                }
+                return false;
+            }
+            throw new Error(`HTTP ${resp.status}`);
+        }
+
+        const fileInfo = await resp.json();
+        const jsonContent = decodeURIComponent(escape(atob(fileInfo.content)));
+        const data = JSON.parse(jsonContent);
+        
+        if (!data || !data._meta) {
+            if (!silent) alert('Invalid backup format on GitHub.');
+            return false;
+        }
+
+        if (silent) {
+            _restoreData(data, 'GitHub (auto)', true);
+        } else {
+            const txCount = data.transactions ? data.transactions.length : 0;
+            const exportDate = data._meta.exportedAt ? new Date(data._meta.exportedAt).toLocaleString() : 'unknown';
+            if (confirm(`Found backup on GitHub:\n${txCount} transactions\nExported: ${exportDate}\n\nRestore this data? (Overwrites local data)`)) {
+                _restoreData(data, 'GitHub');
+            } else {
+                if (status) {
+                    status.textContent = '⚠️ Restore cancelled by user';
+                    status.style.color = '#f59e0b';
+                }
+            }
+        }
+        return true;
+    } catch (err) {
+        console.error('GitHub data load failed:', err);
+        if (!silent) alert('Failed to load from GitHub: ' + err.message);
+        if (status) {
+            status.textContent = '❌ GitHub load failed';
+            status.style.color = '#ef4444';
+        }
+        return false;
+    }
+}
+
+// Fallback manual Export to File
+function exportDataToFile() {
+    const data = {
+        _meta: { exportedAt: new Date().toISOString(), version: 2, source: 'MoneyTracker' },
+        transactions: getTransactions(),
+        config: JSON.parse(localStorage.getItem('moneyTrackerConfig') || 'null'),
+        usd_kurs: parseFloat(localStorage.getItem('usd_kurs') || '16000')
+    };
+
     const json = JSON.stringify(data, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-
     const link = document.createElement('a');
     link.href = url;
     link.download = 'local-data.json';
@@ -1221,17 +1391,9 @@ function exportDataToFile() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-
-    const backupStatus = document.getElementById('backupStatus');
-    if (backupStatus) {
-        backupStatus.textContent = `✅ Exported ${data.transactions.length} transactions — ${new Date().toLocaleTimeString()}`;
-        backupStatus.style.color = '#10b981';
-    }
-
-    alert(`Data exported!\n${data.transactions.length} transactions\n\n📁 Save the file to:\n${BACKUP_FILENAME}\nin your project folder, then run push_to_github.bat`);
 }
 
-// Import data from a local JSON file
+// Fallback manual Import from File
 function importDataFromFile() {
     const input = document.createElement('input');
     input.type = 'file';
@@ -1257,60 +1419,6 @@ function importDataFromFile() {
     });
 
     input.click();
-}
-
-// Load data from GitHub raw URL
-async function loadDataFromGitHub(silent = false) {
-    const backupStatus = document.getElementById('backupStatus');
-    if (backupStatus) {
-        backupStatus.textContent = '⏳ Loading from GitHub...';
-        backupStatus.style.color = 'var(--text-muted)';
-    }
-
-    try {
-        // Add cache-buster to avoid stale data
-        const url = GITHUB_RAW_URL + '?t=' + Date.now();
-        const resp = await fetch(url);
-
-        if (!resp.ok) {
-            if (resp.status === 404) {
-                if (!silent) alert('No backup file found on GitHub.\nExport your data first, save to data/local-data.json, and push.');
-                if (backupStatus) {
-                    backupStatus.textContent = '⚠️ No backup found on GitHub';
-                    backupStatus.style.color = '#f59e0b';
-                }
-                return false;
-            }
-            throw new Error('HTTP ' + resp.status);
-        }
-
-        const data = await resp.json();
-        
-        if (!data || !data._meta) {
-            if (!silent) alert('Invalid backup format on GitHub.');
-            return false;
-        }
-
-        if (silent) {
-            // Auto-restore silently
-            _restoreData(data, 'GitHub (auto)', true);
-        } else {
-            const txCount = data.transactions ? data.transactions.length : 0;
-            const exportDate = data._meta.exportedAt ? new Date(data._meta.exportedAt).toLocaleString() : 'unknown';
-            if (confirm(`Found backup on GitHub:\n${txCount} transactions\nExported: ${exportDate}\n\nRestore this data? (Overwrites local data)`)) {
-                _restoreData(data, 'GitHub');
-            }
-        }
-        return true;
-    } catch (err) {
-        console.error('GitHub data load failed:', err);
-        if (!silent) alert('Failed to load from GitHub: ' + err.message);
-        if (backupStatus) {
-            backupStatus.textContent = '❌ GitHub load failed';
-            backupStatus.style.color = '#ef4444';
-        }
-        return false;
-    }
 }
 
 // Internal: Apply imported data to localStorage
@@ -1349,6 +1457,7 @@ function _restoreData(data, source, silent = false) {
         console.log(`Auto-restored from ${source}:`, restoredParts.join(', '));
     }
 }
+
 
 // Toggle auto-sync setting
 function toggleAutoSync(checkbox) {
@@ -1551,6 +1660,7 @@ function init() {
     // PIN Login Integration
     checkLogin();
     updateSecurityUI();
+    updateGitHubUI();
 
     // Auto-sync data if empty
     autoSyncOnStartup();

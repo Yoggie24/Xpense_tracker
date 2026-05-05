@@ -309,12 +309,28 @@
                 <!-- Data Backup -->
                 <div class="settings-section">
                     <h3>💾 Data Backup</h3>
-                    <div class="sync-btn-row">
-                        <button class="sync-btn" onclick="exportDataToFile()">📤 Export</button>
-                        <button class="sync-btn" onclick="importDataFromFile()">📥 Import</button>
-                        <button class="sync-btn sync-btn-all" onclick="loadDataFromGitHub()">🌐 Load from GitHub</button>
+                    
+                    <div id="github-creds" style="display: none; margin-bottom: 12px;">
+                        <input type="password" id="github-token-input" placeholder="GitHub Personal Access Token (PAT)" class="settings-input">
+                        <button class="save-creds-btn" onclick="saveGitHubToken()" style="margin-top: 4px;">Save Token</button>
+                        <p class="settings-desc" style="margin-top: 4px; font-size: 0.75rem;">Token needs 'repo' scope. Keep it safe!</p>
                     </div>
-                    <div id="backupStatus" class="sync-status">Save exported file to data/local-data.json, then push</div>
+
+                    <div class="sync-btn-row">
+                        <button class="sync-btn sync-btn-all" onclick="pushToGitHub()" style="background: var(--bca-blue); color: white;">📤 Push to GitHub</button>
+                        <button class="sync-btn" onclick="loadDataFromGitHub()">📥 Load from GitHub</button>
+                        <button class="sync-btn" onclick="document.getElementById('github-creds').style.display = document.getElementById('github-creds').style.display === 'none' ? 'block' : 'none'" style="width: auto; flex: 0.2; padding: 0 10px;">⚙️</button>
+                    </div>
+                    
+                    <div id="backupStatus" class="sync-status" style="margin-top: 8px;">Direct API Sync (No script needed)</div>
+                    
+                    <div style="margin-top: 12px; border-top: 1px dashed #e2e8f0; padding-top: 12px;">
+                        <span class="settings-desc" style="display: block; margin-bottom: 8px;">Manual Fallbacks:</span>
+                        <div class="sync-btn-row">
+                            <button class="sync-btn" onclick="exportDataToFile()" style="font-size: 0.75rem;">Download File</button>
+                            <button class="sync-btn" onclick="importDataFromFile()" style="font-size: 0.75rem;">Upload File</button>
+                        </div>
+                    </div>
                 </div>
 
                 <hr class="settings-divider">
