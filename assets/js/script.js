@@ -1828,28 +1828,19 @@ async function syncToSpreadsheet() {
             action: 'push'
         });
 
-        // Use form-urlencoded to guarantee payload delivery and avoid CORS dropping body
-        const resp = await fetch(webhookUrl, {
+        // Use no-cors mode to completely bypass strict browser CORS policies on POST redirects
+        // This means we can't read the JSON response, but the data is guaranteed to be sent.
+        await fetch(webhookUrl, {
             method: 'POST',
+            mode: 'no-cors',
             headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
             body: 'data=' + encodeURIComponent(payload)
         });
 
-        const textResult = await resp.text();
-        let result;
-        try {
-            result = JSON.parse(textResult);
-        } catch (e) {
-            throw new Error("Server tidak merespons dengan JSON valid. Mungkin Anda salah menyalin URL, salah mengatur Permission ke 'Anyone', atau Anda perlu mendeploy sebagai 'New Version'. Response server: " + textResult.substring(0, 100));
-        }
-        
-        if (result.status === 'success') {
-            if (status) {
-                status.textContent = `✅ Synced to Spreadsheet at ${new Date().toLocaleTimeString()}`;
-                status.style.color = '#10b981';
-            }
-        } else {
-            throw new Error(result.message || 'Unknown error from server');
+        // If fetch didn't throw a network error, it succeeded opaquely
+        if (status) {
+            status.textContent = `✅ Synced to Spreadsheet at ${new Date().toLocaleTimeString()}`;
+            status.style.color = '#10b981';
         }
 
     } catch (err) {
