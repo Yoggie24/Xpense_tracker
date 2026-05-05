@@ -292,9 +292,14 @@
                         <input type="password" id="gas-webhook-url" placeholder="Paste Google Apps Script URL here" class="settings-input">
                         <button class="save-creds-btn" onclick="saveGASUrl()" style="margin-top: 8px;">Save Webhook URL</button>
                     </div>
-                    <button id="sync-to-sheet-btn" class="upload-btn" onclick="syncToSpreadsheet()" style="background: var(--success, #10b981); color: white; margin-top: 10px;">
-                        🚀 Push to Spreadsheet
-                    </button>
+                    <div class="sync-btn-row">
+                        <button id="sync-to-sheet-btn" class="upload-btn" onclick="syncToSpreadsheet()" style="background: var(--success, #10b981); color: white; margin-top: 10px; flex: 1;">
+                            🚀 Push to Spreadsheet
+                        </button>
+                        <button id="load-from-sheet-btn" class="upload-btn" onclick="loadFromSpreadsheet()" style="background: var(--bca-blue); color: white; margin-top: 10px; flex: 1;">
+                            📥 Load from Spreadsheet
+                        </button>
+                    </div>
                     <div id="spreadsheet-status" class="sync-status" style="margin-top: 8px;">Status: Ready</div>
                 </div>
 

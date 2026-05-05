@@ -1825,33 +1825,81 @@ async function syncToSpreadsheet() {
     try {
         const payload = JSON.stringify({
             transactions: transactions,
-            action: 'sync'
+            action: 'push'
         });
 
-        // The webhook expects a POST request.
-        // mode: 'no-cors' is used because GAS redirects and sometimes blocks standard CORS if not returning proper headers.
-        // With 'no-cors', we can't read the response, but we know it reached the server.
-        await fetch(webhookUrl, {
+        // Use text/plain to avoid CORS OPTIONS preflight
+        const resp = await fetch(webhookUrl, {
             method: 'POST',
-            mode: 'no-cors',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: payload
         });
 
-        // Since no-cors hides the response, if it doesn't throw a network error, we assume success.
-        if (status) {
-            status.textContent = `✅ Synced to Spreadsheet at ${new Date().toLocaleTimeString()}`;
-            status.style.color = '#10b981';
+        const result = await resp.json();
+        
+        if (result.status === 'success') {
+            if (status) {
+                status.textContent = `✅ Synced to Spreadsheet at ${new Date().toLocaleTimeString()}`;
+                status.style.color = '#10b981';
+            }
+        } else {
+            throw new Error(result.message || 'Unknown error from server');
         }
 
     } catch (err) {
         console.error("Spreadsheet Sync Error:", err);
         if (status) {
-            status.textContent = `❌ Sync failed (Network Error)`;
+            status.textContent = `❌ Sync failed: ${err.message}`;
             status.style.color = '#ef4444';
         }
+    }
+}
+
+async function loadFromSpreadsheet(silent = false) {
+    const webhookUrl = getGASUrl();
+    const status = document.getElementById('spreadsheet-status');
+
+    if (!webhookUrl) return false;
+
+    if (status && !silent) {
+        status.textContent = '⏳ Loading from Spreadsheet...';
+        status.style.color = 'var(--text-muted)';
+    }
+
+    try {
+        // Send a GET request to Webhook or POST with action: 'pull'
+        // Using GET with redirect follow works perfectly in GAS
+        const urlWithParam = webhookUrl + (webhookUrl.includes('?') ? '&' : '?') + 'action=pull&t=' + Date.now();
+        const resp = await fetch(urlWithParam);
+        const result = await resp.json();
+
+        if (result.status === 'success') {
+            if (result.transactions && result.transactions.length > 0) {
+                saveTransactions(result.transactions);
+                updateBalance();
+                displayTransactions();
+                
+                if (status) {
+                    status.textContent = `✅ Loaded ${result.transactions.length} rows at ${new Date().toLocaleTimeString()}`;
+                    status.style.color = '#10b981';
+                }
+                if (!silent) alert(`Berhasil memuat ${result.transactions.length} transaksi dari Spreadsheet!`);
+                return true;
+            } else {
+                if (!silent) alert('Spreadsheet kosong atau tidak ada transaksi.');
+                if (status) status.textContent = '⚠️ Spreadsheet kosong';
+            }
+        } else {
+            throw new Error(result.message || 'Failed to load');
+        }
+    } catch (err) {
+        console.error("Spreadsheet Load Error:", err);
+        if (status) {
+            status.textContent = `❌ Load failed: ${err.message}`;
+            status.style.color = '#ef4444';
+        }
+        if (!silent) alert("Gagal memuat dari Spreadsheet. Periksa URL atau koneksi Anda.");
+        return false;
     }
 }
 
@@ -1865,7 +1913,7 @@ addTransaction = function (...args) {
     }
 };
 
-// Auto-fill URL on load
+// Auto-fill URL on load and attempt auto-load if local data is empty
 const originalInit = init;
 init = function () {
     originalInit.apply(this, arguments);
@@ -1873,6 +1921,11 @@ init = function () {
     const input = document.getElementById('gas-webhook-url');
     if (input && url) {
         input.value = url;
+    }
+    
+    // Auto pull from Spreadsheet if local is empty
+    if (url && getTransactions().length === 0) {
+        loadFromSpreadsheet(true);
     }
 };
 
