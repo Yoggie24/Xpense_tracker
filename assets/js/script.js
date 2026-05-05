@@ -520,40 +520,83 @@ async function fetchKurs() {
 }
 
 
-// Fetch latest Gold price (XAU/USD → IDR/gram)
+// ============================================================
+// Gold Price Fetching — Multi-source with fallbacks
+// ============================================================
+
+// Internal helper: try fetching gold XAU/USD price from multiple sources
+async function _fetchGoldXauUsd() {
+    const sources = [
+        // Source 1: CoinGecko (tether-gold ≈ XAU, free, CORS-friendly)
+        async () => {
+            const resp = await fetch('https://api.coingecko.com/api/v3/simple/price?ids=tether-gold&vs_currencies=usd');
+            if (!resp.ok) throw new Error('CoinGecko HTTP ' + resp.status);
+            const data = await resp.json();
+            if (data['tether-gold'] && data['tether-gold'].usd) {
+                // CoinGecko returns price per 1 troy oz equivalent
+                return { xauUsd: data['tether-gold'].usd, source: 'CoinGecko' };
+            }
+            throw new Error('CoinGecko: no data');
+        },
+        // Source 2: goldprice.org via corsproxy.io
+        async () => {
+            const url = 'https://corsproxy.io/?' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('corsproxy HTTP ' + resp.status);
+            const data = await resp.json();
+            if (data.items && data.items.length > 0) {
+                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (corsproxy)' };
+            }
+            throw new Error('corsproxy: no items');
+        },
+        // Source 3: goldprice.org via allorigins
+        async () => {
+            const url = 'https://api.allorigins.win/raw?url=' + encodeURIComponent('https://data-asg.goldprice.org/dbXRates/USD');
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error('allorigins HTTP ' + resp.status);
+            const data = await resp.json();
+            if (data.items && data.items.length > 0) {
+                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (allorigins)' };
+            }
+            throw new Error('allorigins: no items');
+        },
+        // Source 4: goldprice.org direct (works in non-browser environments)
+        async () => {
+            const resp = await fetch('https://data-asg.goldprice.org/dbXRates/USD');
+            if (!resp.ok) throw new Error('direct HTTP ' + resp.status);
+            const data = await resp.json();
+            if (data.items && data.items.length > 0) {
+                return { xauUsd: data.items[0].xauPrice, source: 'goldprice.org (direct)' };
+            }
+            throw new Error('direct: no items');
+        }
+    ];
+
+    for (let i = 0; i < sources.length; i++) {
+        try {
+            const result = await sources[i]();
+            console.log(`Gold price fetched from ${result.source}: $${result.xauUsd}`);
+            return result;
+        } catch (e) {
+            console.warn(`Gold source ${i + 1} failed:`, e.message);
+        }
+    }
+    return null; // All sources failed
+}
+
+// Fetch Gold Price (with UI feedback)
 async function fetchGoldPrice() {
     const syncStatus = document.getElementById('syncStatus');
-    const GOLD_URL = 'https://data-asg.goldprice.org/dbXRates/USD';
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GOLD_URL);
-
-    let goldData = null;
-
-    // Use CORS proxy as primary (direct goldprice.org is CORS-blocked in browsers)
-    try {
-        const resp = await fetch(PROXY_URL);
-        if (resp.ok) {
-            goldData = await resp.json();
-        }
-    } catch (e) {
-        console.warn("Proxy gold fetch failed, trying direct...", e);
+    if (syncStatus) {
+        syncStatus.textContent = '⏳ Fetching gold price...';
+        syncStatus.style.color = 'var(--text-muted)';
     }
 
-    // Fallback: try direct (in case proxy is down)
-    if (!goldData) {
-        try {
-            const resp = await fetch(GOLD_URL);
-            if (resp.ok) {
-                goldData = await resp.json();
-            }
-        } catch (e2) {
-            console.error("Direct gold fetch also failed:", e2);
-        }
-    }
+    const result = await _fetchGoldXauUsd();
 
-    if (goldData && goldData.items && goldData.items.length > 0) {
-        const xauUsd = goldData.items[0].xauPrice;
+    if (result) {
         const kurs = getKurs();
-        const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
+        const goldIdrPerGram = Math.round((result.xauUsd * kurs) / 31.1035);
 
         const config = getConfig();
         const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
@@ -563,20 +606,40 @@ async function fetchGoldPrice() {
             updateBalance();
             updateRatesDisplay();
             if (syncStatus) {
-                syncStatus.textContent = `✅ Gold: ${formatMoney(goldIdrPerGram)}/gram (XAU: $${xauUsd.toLocaleString()}) — ${new Date().toLocaleTimeString()}`;
+                syncStatus.textContent = `✅ Gold: ${formatMoney(goldIdrPerGram)}/gram (XAU: $${result.xauUsd.toLocaleString()}) — ${new Date().toLocaleTimeString()}`;
                 syncStatus.style.color = '#10b981';
             }
-            alert(`Gold price updated!\nXAU/USD: $${xauUsd.toLocaleString()}\nIDR/gram: ${formatMoney(goldIdrPerGram)}`);
+            alert(`Gold price updated!\nXAU/USD: $${result.xauUsd.toLocaleString()}\nIDR/gram: ${formatMoney(goldIdrPerGram)}\nSource: ${result.source}`);
             return true;
         } else {
             alert("Gold asset not found in your configuration.");
         }
     } else {
+        // All APIs failed — offer manual input
         if (syncStatus) {
-            syncStatus.textContent = "❌ Failed to update Gold price.";
+            syncStatus.textContent = "❌ All gold APIs failed. Use manual input.";
             syncStatus.style.color = '#ef4444';
         }
-        alert("Failed to fetch Gold price. Check your connection.");
+        const manual = prompt("Could not fetch gold price automatically.\nEnter current XAU/USD price manually (e.g. 3300):");
+        if (manual !== null && manual !== "") {
+            const xauUsd = parseFloat(manual);
+            if (xauUsd > 0) {
+                const kurs = getKurs();
+                const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
+                const config = getConfig();
+                const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
+                if (goldAsset) {
+                    goldAsset.price = goldIdrPerGram;
+                    saveConfig(config);
+                    updateBalance();
+                    updateRatesDisplay();
+                    alert(`Gold price set manually!\nXAU/USD: $${xauUsd}\nIDR/gram: ${formatMoney(goldIdrPerGram)}`);
+                    return true;
+                }
+            } else {
+                alert("Invalid number entered.");
+            }
+        }
     }
     return false;
 }
@@ -632,24 +695,10 @@ async function fetchKursQuiet() {
 }
 
 async function fetchGoldQuiet() {
-    const GOLD_URL = 'https://data-asg.goldprice.org/dbXRates/USD';
-    const PROXY_URL = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(GOLD_URL);
-    let goldData = null;
-
-    try {
-        const resp = await fetch(PROXY_URL);
-        if (resp.ok) goldData = await resp.json();
-    } catch (e) {
-        try {
-            const resp = await fetch(GOLD_URL);
-            if (resp.ok) goldData = await resp.json();
-        } catch (e2) { console.error("Gold fetch failed:", e2); }
-    }
-
-    if (goldData && goldData.items && goldData.items.length > 0) {
-        const xauUsd = goldData.items[0].xauPrice;
+    const result = await _fetchGoldXauUsd();
+    if (result) {
         const kurs = getKurs();
-        const goldIdrPerGram = Math.round((xauUsd * kurs) / 31.1035);
+        const goldIdrPerGram = Math.round((result.xauUsd * kurs) / 31.1035);
         const config = getConfig();
         const goldAsset = config.paymentMethods.find(m => m.name === 'Gold');
         if (goldAsset) {
@@ -677,7 +726,7 @@ function updateRatesDisplay() {
             <span class="rate-value">${formatMoney(kurs)}</span>
         </div>
         <div class="rate-item">
-            <span class="rate-label">🥇 Gold Price/gram</span>
+            <span class="rate-label">🥇 Gold/gram</span>
             <span class="rate-value">${formatMoney(goldPrice)}</span>
         </div>
     `;

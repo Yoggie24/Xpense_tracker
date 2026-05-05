@@ -267,119 +267,69 @@
                 <div class="card-header">
                     <h2>Settings</h2>
                 </div>
-                <hr class="settings-divider">
 
-                <!-- Section 2: Security -->
+                <!-- Live Rates (most used — show first) -->
                 <div class="settings-section">
-                    <div class="section-header">
-                        <span class="section-icon">🔒</span>
-                        <div>
-                            <h3>Security</h3>
-                            <p class="settings-desc">Protect your data with a numeric PIN</p>
-                        </div>
-                    </div>
-                    <div class="security-controls">
-                        <button id="setup-pin-btn" class="upload-btn" onclick="togglePinSetup()">Setup/Change
-                            PIN</button>
-                        <div id="pin-setup-form" style="display: none; margin-top: 15px;">
-                            <input type="password" id="new-pin" placeholder="Enter new PIN" maxlength="6"
-                                style="width: 100%; padding: 12px; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px;">
-                            <button class="upload-btn" onclick="saveNewPin()"
-                                style="background: var(--bca-blue); color: white; width: 100%;">Save PIN</button>
-                        </div>
-                        <button id="remove-pin-btn" class="upload-btn" onclick="removePin()"
-                            style="margin-top: 10px; color: #ef4444; display: none;">Remove PIN</button>
-
-                        <div
-                            style="margin-top: 20px; padding: 15px; background: #f8fafc; border-radius: 12px; border: 1px solid #e2e8f0;">
-                            <div style="display: flex; align-items: center; justify-content: space-between;">
-                                <div>
-                                    <h4 style="margin: 0; color: var(--bca-blue); font-size: 0.95rem;">Auto-Sync Cloud
-                                    </h4>
-                                    <p style="margin: 5px 0 0 0; color: var(--text-muted); font-size: 0.8rem;">Sync data
-                                        automatically on new devices</p>
-                                </div>
-                                <label class="switch"
-                                    style="position: relative; display: inline-block; width: 44px; height: 24px;">
-                                    <input type="checkbox" id="auto-sync-toggle" onchange="toggleAutoSync(this)" checked
-                                        style="opacity: 0; width: 0; height: 0; position: absolute;">
-                                    <span
-                                        style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px;"></span>
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <hr class="settings-divider">
-
-                <!-- Section 3: Cloud Sync (Google Sheets) -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <span class="section-icon">☁️</span>
-                        <div>
-                            <h3>Cloud Sync</h3>
-                            <p class="settings-desc">Google Sheets Synchronization</p>
-                        </div>
-                    </div>
-
-                    <div class="gdrive-creds">
-                        <!-- Hidden but present for logic -->
-                        <div id="advanced-creds" style="display: none;">
-                            <input type="text" id="gdrive-client-id" placeholder="Google Client ID"
-                                class="settings-input">
-                            <input type="password" id="gdrive-api-key" placeholder="Google API Key"
-                                class="settings-input">
-                        </div>
-                        <input type="text" id="gdrive-sheet-id" placeholder="Google Spreadsheet ID"
-                            class="settings-input">
-                        <div style="display: flex; gap: 8px; margin-top: 10px;">
-                            <button class="save-creds-btn" onclick="saveGDriveCreds()" style="flex: 1;">Save
-                                Configuration</button>
-                            <button class="sync-btn" onclick="toggleAdvanced()"
-                                style="width: auto; padding: 0 10px;">⚙️</button>
-                        </div>
-                    </div>
-
-                    <div class="gdrive-controls" style="margin-top: 15px;">
-                        <button id="refresh-cloud-btn" class="upload-btn" onclick="fetchGSheetData('all')"
-                            style="background: var(--bca-blue); color: white; display: flex; align-items: center; justify-content: center; gap: 8px;">
-                            🔄 Refresh Cloud Data
-                        </button>
-
-                        <div
-                            style="margin-top: 15px; padding: 12px; background: #f0f7ff; border-radius: 12px; border: 1px solid #d0e7ff; display: none;">
-                            <!-- Kept for backward compatibility but hidden -->
-                            <input type="checkbox" id="gdrive-auto-backup" checked hidden>
-                        </div>
-                    </div>
-                    <div id="gdrive-status" class="sync-status" style="margin-top: 10px; font-size: 0.8rem;">Status:
-                        Initializing...</div>
-                </div>
-
-                <hr class="settings-divider">
-
-                <!-- Section 4: Live Rates -->
-                <div class="settings-section">
-                    <div class="section-header">
-                        <span class="section-icon">💹</span>
-                        <div>
-                            <h3>Live Rates</h3>
-                            <p class="settings-desc">Current exchange rates & asset prices</p>
-                        </div>
-                    </div>
+                    <h3>📊 Live Rates</h3>
                     <div class="current-rates" id="currentRatesDisplay">
                         <!-- Populated by JS -->
                     </div>
                     <div class="sync-btn-row">
                         <button class="sync-btn" id="syncKurs">💵 USD Kurs</button>
                         <button class="sync-btn" id="syncGold">🥇 Gold</button>
-                        <button class="sync-btn sync-btn-all" id="syncAll">🔄 All</button>
+                        <button class="sync-btn sync-btn-all" id="syncAll">🔄 Sync All</button>
                     </div>
                     <div id="syncStatus" class="sync-status">Last synced: Never</div>
                 </div>
+
+                <hr class="settings-divider">
+
+                <!-- Cloud Sync -->
+                <div class="settings-section">
+                    <h3>☁️ Cloud Sync</h3>
+                    <div class="gdrive-creds">
+                        <div id="advanced-creds" style="display: none;">
+                            <input type="text" id="gdrive-client-id" placeholder="Google Client ID" class="settings-input">
+                            <input type="password" id="gdrive-api-key" placeholder="Google API Key" class="settings-input">
+                        </div>
+                        <input type="text" id="gdrive-sheet-id" placeholder="Google Spreadsheet ID" class="settings-input">
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <button class="save-creds-btn" onclick="saveGDriveCreds()" style="flex: 1;">Save</button>
+                            <button class="sync-btn" onclick="toggleAdvanced()" style="width: auto; padding: 0 10px;">⚙️</button>
+                        </div>
+                    </div>
+                    <button id="refresh-cloud-btn" class="upload-btn" onclick="fetchGSheetData('all')" style="background: var(--bca-blue); color: white; margin-top: 10px;">
+                        🔄 Refresh Cloud Data
+                    </button>
+                    <div id="gdrive-status" class="sync-status" style="margin-top: 8px;">Status: Initializing...</div>
+                </div>
+
+                <hr class="settings-divider">
+
+                <!-- Security -->
+                <div class="settings-section">
+                    <h3>🔒 Security</h3>
+                    <div class="security-controls">
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <button id="setup-pin-btn" class="upload-btn" onclick="togglePinSetup()" style="flex: 1;">Setup/Change PIN</button>
+                            <button id="remove-pin-btn" class="upload-btn" onclick="removePin()" style="width: auto; padding: 10px 14px; color: #ef4444; display: none;">✕</button>
+                        </div>
+                        <div id="pin-setup-form" style="display: none; margin-top: 10px;">
+                            <input type="password" id="new-pin" placeholder="Enter new PIN" maxlength="6" class="settings-input">
+                            <button class="save-creds-btn" onclick="saveNewPin()" style="background: var(--bca-blue); color: white; width: 100%; margin-top: 6px;">Save PIN</button>
+                        </div>
+                        <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 12px; padding: 10px 14px; background: #f8fafc; border-radius: 10px; border: 1px solid #e2e8f0;">
+                            <span style="font-size: 0.85rem; color: var(--text-main); font-weight: 500;">Auto-Sync Cloud</span>
+                            <label class="switch" style="position: relative; display: inline-block; width: 44px; height: 24px;">
+                                <input type="checkbox" id="auto-sync-toggle" onchange="toggleAutoSync(this)" checked style="opacity: 0; width: 0; height: 0; position: absolute;">
+                                <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #cbd5e1; transition: .4s; border-radius: 24px;"></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
+
 
         <script src="assets/js/script.js"></script>
 </body>
