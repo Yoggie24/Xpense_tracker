@@ -201,13 +201,13 @@ function updateRatesDisplay() {
     const goldPrice = goldAsset ? goldAsset.price || 0 : 0;
 
     display.innerHTML = `
-        <div class="rate-item">
-            <span class="rate-label">💵 USD Kurs</span>
-            <span class="rate-value">${formatMoney(kurs)}</span>
+        <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex flex-col items-center justify-center">
+            <span class="text-[10px] text-slate-500 font-bold uppercase mb-1">💵 USD Kurs</span>
+            <span class="text-emerald-400 font-mono font-bold">${formatMoney(kurs)}</span>
         </div>
-        <div class="rate-item">
-            <span class="rate-label">🥇 Gold Price/gram</span>
-            <span class="rate-value">${formatMoney(goldPrice)}</span>
+        <div class="bg-black/30 p-3 rounded-xl border border-white/5 flex flex-col items-center justify-center">
+            <span class="text-[10px] text-slate-500 font-bold uppercase mb-1">🥇 Gold / g</span>
+            <span class="text-yellow-400 font-mono font-bold">${formatMoney(goldPrice)}</span>
         </div>
     `;
 }

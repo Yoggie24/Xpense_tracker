@@ -8,7 +8,8 @@ const DEFAULT_CONFIG = {
     ]
 };
 
-let USD_KURS = 16000;
+let USD_KURS = parseFloat(localStorage.getItem('USD_KURS')) || 16000;
+let GOLD_PRICE = parseFloat(localStorage.getItem('GOLD_PRICE')) || 0;
 let masterData = [];
 let itemToDelete = null;
 let sortState = { k: 'date', o: 'desc' };
@@ -201,6 +202,34 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('entry-acc-source').value = item.acc;
             document.getElementById('entry-amt-source').value = item.amt;
         }
+
+        // Quick Edit click handler
+        const amtEdit = e.target.closest('.inline-amount-edit');
+        if (amtEdit) {
+            const item = JSON.parse(amtEdit.dataset.item);
+            document.getElementById('qe-id').value = item.id;
+            document.getElementById('qe-desc').textContent = item.desc + ' • ' + item.date;
+            document.getElementById('qe-curr').textContent = item.curr;
+            document.getElementById('qe-amt').value = item.amt;
+            document.getElementById('quick-edit-modal').classList.remove('hidden');
+        }
+
+        // Balance Edit click handler
+        const balEdit = e.target.closest('.inline-balance-edit');
+        if (balEdit) {
+            const acc = balEdit.dataset.acc;
+            const curr = balEdit.dataset.curr;
+            const val = balEdit.dataset.val;
+            
+            document.getElementById('adj-acc').value = acc;
+            document.getElementById('adj-curr').value = curr;
+            document.getElementById('adj-old-amt').value = val;
+            
+            document.getElementById('adj-desc').textContent = 'Account: ' + acc;
+            document.getElementById('adj-curr-lbl').textContent = curr;
+            document.getElementById('adj-amt').value = val;
+            document.getElementById('balance-adj-modal').classList.remove('hidden');
+        }
     });
 
     document.getElementById('del-cancel').addEventListener('click', () => document.getElementById('delete-modal').classList.add('hidden'));
@@ -212,6 +241,63 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast("Deleted successfully", 'success');
         fetchData();
         syncToSpreadsheet();
+    });
+
+    // Quick Edit logic
+    document.getElementById('qe-cancel').addEventListener('click', () => document.getElementById('quick-edit-modal').classList.add('hidden'));
+    document.getElementById('qe-save').addEventListener('click', () => {
+        const id = document.getElementById('qe-id').value;
+        const newAmt = parseFloat(document.getElementById('qe-amt').value);
+        if (isNaN(newAmt) || newAmt < 0) {
+            showToast("Invalid amount", 'error');
+            return;
+        }
+        let txs = getTransactions();
+        const idx = txs.findIndex(t => t.id == id);
+        if (idx !== -1) {
+            txs[idx].amount = newAmt;
+            saveTransactions(txs);
+            document.getElementById('quick-edit-modal').classList.add('hidden');
+            showToast("Amount updated", 'success');
+            fetchData();
+            syncToSpreadsheet();
+        }
+    });
+
+    // Balance Adjustment logic
+    document.getElementById('adj-cancel').addEventListener('click', () => document.getElementById('balance-adj-modal').classList.add('hidden'));
+    document.getElementById('adj-save').addEventListener('click', () => {
+        const acc = document.getElementById('adj-acc').value;
+        const curr = document.getElementById('adj-curr').value;
+        const oldAmt = parseFloat(document.getElementById('adj-old-amt').value);
+        const newAmt = parseFloat(document.getElementById('adj-amt').value);
+        
+        if (isNaN(newAmt)) {
+            showToast("Invalid amount", 'error');
+            return;
+        }
+        
+        const diff = newAmt - oldAmt;
+        if (diff !== 0) {
+            let txs = getTransactions();
+            const dateStr = document.getElementById('entry-date').value || new Date().toISOString().split('T')[0];
+            
+            txs.push({
+                id: Date.now().toString(),
+                date: dateStr,
+                description: 'Balance Adjustment',
+                category: 'Initial Balance',
+                paymentMethod: acc,
+                type: diff > 0 ? 'income' : 'expense',
+                amount: Math.abs(diff),
+                currency: curr
+            });
+            saveTransactions(txs);
+            showToast("Balance adjusted", 'success');
+            fetchData();
+            syncToSpreadsheet();
+        }
+        document.getElementById('balance-adj-modal').classList.add('hidden');
     });
 
     ['filter-start', 'filter-end', 'filter-cat', 'filter-acc', 'filter-search'].forEach(i => document.getElementById(i).addEventListener('input', renderAll));
@@ -231,6 +317,28 @@ document.addEventListener('DOMContentLoaded', () => {
     
     document.getElementById('push-data-btn').addEventListener('click', syncToSpreadsheet);
     document.getElementById('pull-data-btn').addEventListener('click', loadFromSpreadsheet);
+
+    // Math Evaluation logic
+    document.addEventListener('blur', (e) => {
+        if (e.target.classList && e.target.classList.contains('math-input')) {
+            const val = e.target.value.trim();
+            if (!val) return;
+            try {
+                const sanitized = val.replace(/[^0-9\.\+\-\*\/\(\)]/g, '');
+                if (sanitized) {
+                    const result = new Function('return ' + sanitized)();
+                    if (!isNaN(result) && isFinite(result)) {
+                        e.target.value = result;
+                    }
+                }
+            } catch (err) { }
+        }
+    }, true);
+
+    // Live Rates Setup
+    const syncAllBtn = document.getElementById('syncAll');
+    if (syncAllBtn) syncAllBtn.addEventListener('click', syncAllRates);
+    updateRatesDisplay();
 
     // Initial setups
     setTimeout(() => {
@@ -310,6 +418,16 @@ window.toggleCurrency = (id, usdVal) => {
 
 function renderAll() {
     const bals = {}; let incIDR = 0, expIDR = 0, incUSD = 0, expUSD = 0;
+    
+    // Initialize all payment methods to 0 balance
+    DEFAULT_CONFIG.paymentMethods.forEach(method => {
+        let curr = 'IDR';
+        if (method.includes('USD')) curr = 'USD';
+        if (method === 'Gold') curr = 'IDR';
+        const k = `${method}-${curr}`;
+        bals[k] = { n: method, c: curr, v: 0 };
+    });
+
     masterData.forEach(d => {
         const k = `${d.acc}-${d.curr}`;
         if (!bals[k]) bals[k] = { n: d.acc, c: d.curr, v: 0 };
@@ -322,30 +440,81 @@ function renderAll() {
         }
     });
 
-    document.getElementById('account-balances-container').innerHTML = Object.values(bals).sort((a, b) => a.n.localeCompare(b.n)).map((b, idx) => {
+    const wallets = [];
+    const investments = [];
+    
+    Object.values(bals).sort((a, b) => a.n.localeCompare(b.n)).forEach((b, idx) => {
+        if (b.n === 'Gold' || b.n === 'Stocks') {
+            investments.push({...b, id: `inv-${idx}`});
+        } else {
+            wallets.push({...b, id: `bal-${idx}`});
+        }
+    });
+
+    const renderCard = (b) => {
         const isUSD = b.c === 'USD';
-        const id = `bal-${idx}`;
+        const isGold = b.n === 'Gold';
+        let displayVal = isGold ? `${b.v.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:2})} g` : fmt(b.v, b.c);
+        let idrEquivalent = 0;
+        
+        if (isGold) idrEquivalent = b.v * GOLD_PRICE;
+        else if (isUSD) idrEquivalent = b.v * USD_KURS;
+        else idrEquivalent = b.v;
+
         return `
-        <div class="bg-black/30 p-4 rounded-2xl border border-white/5 hover:border-white/10 transition flex flex-col justify-center min-h-[80px] relative group shadow-inner">
-            <span class="text-[10px] text-slate-400 uppercase font-bold tracking-widest truncate mb-1" title="${b.n}">${b.n}</span>
-            <span id="${id}" class="font-bold font-mono text-sm tracking-tighter truncate ${b.v >= 0 ? 'text-theme-primaryLight' : 'text-rose-400'} ${isUSD ? 'cursor-pointer' : ''}" onclick="${isUSD ? `toggleCurrency('${id}', ${b.v})` : ''}">
-                ${fmt(b.v, b.c)}
+        <div class="formal-card p-4 flex flex-col justify-center min-h-[80px] relative group">
+            <span class="text-[10px] text-slate-500 uppercase font-bold tracking-widest truncate mb-1" title="${b.n}">${b.n}</span>
+            <span id="${b.id}" class="font-bold font-mono text-sm tracking-tighter truncate ${b.v >= 0 ? (isGold || b.n === 'Stocks' ? 'text-yellow-600' : 'text-slate-800') : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-balance-edit" data-acc="${b.n}" data-curr="${b.c}" data-val="${b.v}">
+                ${displayVal}
             </span>
-            ${isUSD ? '<div class="absolute top-2 right-2 text-[8px] bg-white/5 p-1 rounded text-slate-500 group-hover:text-theme-primaryLight transition"><i class="fas fa-exchange-alt"></i></div>' : ''}
+            ${(isUSD || isGold) ? `<div class="absolute top-2 right-2 text-[8px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 transition font-mono whitespace-nowrap overflow-hidden max-w-[90%] group-hover:text-slate-800 border border-slate-200">${isGold ? 'Rp ' + fmt(idrEquivalent, 'IDR').replace('IDR','').trim() : '<i class="fas fa-exchange-alt"></i>'}</div>` : ''}
         </div>
-    `;
-    }).join('');
+        `;
+    };
+
+    document.getElementById('account-balances-container').innerHTML = wallets.map(renderCard).join('');
+    const invContainer = document.getElementById('investment-balances-container');
+    if (invContainer) {
+        invContainer.innerHTML = investments.map(renderCard).join('');
+        if (investments.length === 0) invContainer.innerHTML = '<div class="col-span-full text-center text-slate-500 py-4 text-xs italic">No investments yet</div>';
+    }
 
     const totalIncReal = incIDR + (incUSD * USD_KURS);
     const totalExpReal = expIDR + (expUSD * USD_KURS);
     const netCashFlowIDR = totalIncReal - totalExpReal;
-    let totalAssetIDR = 0; Object.values(bals).forEach(b => { if (b.c === 'IDR') totalAssetIDR += b.v; if (b.c === 'USD') totalAssetIDR += (b.v * USD_KURS); });
+    
+    let totalAssetIDR = 0;
+    let totalCashIDR = 0;
+    let totalInvestIDR = 0;
+    
+    Object.values(bals).forEach(b => { 
+        let valIDR = 0;
+        if (b.n === 'Gold') valIDR = (b.v * GOLD_PRICE);
+        else if (b.n === 'Stocks') valIDR = b.v; // Assuming Stocks are tracked in IDR directly
+        else if (b.c === 'IDR') valIDR = b.v; 
+        else if (b.c === 'USD') valIDR = (b.v * USD_KURS); 
+        
+        totalAssetIDR += valIDR;
+        if (b.n === 'Gold' || b.n === 'Stocks') {
+            totalInvestIDR += valIDR;
+        } else {
+            totalCashIDR += valIDR;
+        }
+    });
 
     document.querySelector('#summary-income .stat-value').textContent = fmt(totalIncReal, 'IDR');
     document.querySelector('#summary-expense .stat-value').textContent = fmt(totalExpReal, 'IDR');
     const netEl = document.querySelector('#summary-net .stat-value');
-    netEl.textContent = fmt(netCashFlowIDR, 'IDR');
-    netEl.className = `stat-value text-[13px] sm:text-base md:text-2xl font-bold truncate z-10 font-mono tracking-tighter ${netCashFlowIDR >= 0 ? 'text-slate-200' : 'text-rose-400'}`;
+    if (netEl) {
+        netEl.textContent = fmt(netCashFlowIDR, 'IDR');
+        netEl.className = `stat-value text-[13px] sm:text-base md:text-2xl font-bold truncate z-10 font-mono tracking-tighter ${netCashFlowIDR >= 0 ? 'text-slate-200' : 'text-rose-400'}`;
+    }
+
+    const cashEl = document.querySelector('#summary-cash .stat-value');
+    if (cashEl) cashEl.textContent = fmt(totalCashIDR, 'IDR');
+
+    const investEl = document.querySelector('#summary-invest .stat-value');
+    if (investEl) investEl.textContent = fmt(totalInvestIDR, 'IDR');
 
     document.getElementById('rate-display').textContent = `1 USD = ${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}`;
     document.getElementById('wealth-display').textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAssetIDR);
@@ -358,19 +527,19 @@ function renderAll() {
     }).sort((a, b) => sortState.o === 'asc' ? (a[sortState.k] > b[sortState.k] ? 1 : -1) : (a[sortState.k] < b[sortState.k] ? 1 : -1));
 
     document.getElementById('mobile-trans-list').innerHTML = filtered.map(d => `
-    <div class="glass p-4 rounded-2xl flex justify-between items-center active:scale-[0.98] transition-transform">
+    <div class="formal-card p-4 flex justify-between items-center active:scale-[0.98] transition-transform">
         <div class="flex flex-col max-w-[60%] space-y-1.5">
-            <span class="text-sm font-bold text-slate-100 truncate">${d.desc}</span>
-            <div class="flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-400">
-                <span class="bg-black/30 px-2 py-1 rounded-md border border-white/5">${d.date.slice(5)}</span>
-                <span class="bg-theme-primary/10 text-theme-primaryLight px-2 py-1 rounded-md border border-theme-primary/20 uppercase tracking-wider">${d.acc}</span>
+            <span class="text-sm font-bold text-slate-800 truncate">${d.desc}</span>
+            <div class="flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-500">
+                <span class="bg-slate-100 px-2 py-1 rounded-md border border-slate-200">${d.date.slice(5)}</span>
+                <span class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 uppercase tracking-wider">${d.acc}</span>
             </div>
         </div>
         <div class="flex flex-col items-end gap-2">
-            <span class="font-bold font-mono text-sm ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</span>
+            <span class="font-bold font-mono text-sm ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</span>
             <div class="flex gap-2">
-                <button class="bg-white/5 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
-                <button class="bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+                <button class="bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
+                <button class="bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
             </div>
         </div>
     </div>
@@ -378,16 +547,16 @@ function renderAll() {
     if (filtered.length === 0) document.getElementById('mobile-trans-list').innerHTML = '<div class="text-center text-slate-500 py-10 text-sm italic glass rounded-2xl">No transactions found</div>';
 
     document.getElementById('data-body').innerHTML = filtered.map(d => `
-    <tr class="hover:bg-white/5 transition border-b border-white/5 last:border-0 group">
-        <td class="px-6 py-4 text-sm text-slate-400 whitespace-nowrap font-mono">${d.date}</td>
-        <td class="px-6 py-4 text-sm text-slate-200 font-medium">${d.desc}</td>
-        <td class="px-6 py-4 text-sm"><span class="bg-theme-primary/10 text-theme-primaryLight border border-theme-primary/20 px-2.5 py-1 rounded-lg text-xs font-medium">${d.acc}</span></td>
-        <td class="px-6 py-4 text-sm text-slate-400"><span class="bg-black/30 border border-white/5 px-2.5 py-1 rounded-lg text-xs">${d.cat}</span></td>
-        <td class="px-6 py-4 text-sm text-right font-mono font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</td>
+    <tr class="hover:bg-slate-50 transition border-b border-slate-100 last:border-0 group">
+        <td class="px-6 py-4 text-sm text-slate-500 whitespace-nowrap font-mono">${d.date}</td>
+        <td class="px-6 py-4 text-sm text-slate-800 font-medium">${d.desc}</td>
+        <td class="px-6 py-4 text-sm"><span class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-1 rounded-lg text-xs font-medium">${d.acc}</span></td>
+        <td class="px-6 py-4 text-sm text-slate-500"><span class="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-xs">${d.cat}</span></td>
+        <td class="px-6 py-4 text-sm text-right font-mono font-bold ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</td>
         <td class="px-4 py-4 text-center">
             <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                <button class="w-8 h-8 bg-white/5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
-                <button class="w-8 h-8 bg-rose-500/10 rounded-lg text-rose-400 hover:bg-rose-500/20 transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+                <button class="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
+                <button class="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg text-rose-500 hover:bg-rose-100 transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
             </div>
         </td>
     </tr>
@@ -413,7 +582,7 @@ function renderCalendar(data) {
             el.innerHTML += `<div class="flex gap-1.5 mt-auto pb-1 z-10">${items.some(x => x.type === 'income') ? '<div class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></div>' : ''}${items.some(x => x.type === 'expense') ? '<div class="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(225,29,72,0.8)]"></div>' : ''}</div>`;
             el.onclick = () => {
                 document.getElementById('cal-detail-title').textContent = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                document.getElementById('cal-detail-content').innerHTML = items.map(x => `<div class="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5 mb-2 hover:bg-black/50 transition"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full ${x.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}"></div><div><div class="text-sm text-white font-bold">${x.desc}</div><div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">${x.cat} • ${x.acc}</div></div></div><div class="${x.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-sm font-bold bg-white/5 px-2 py-1 rounded-lg">${fmt(x.amt, x.curr)}</div></div>`).join('');
+                document.getElementById('cal-detail-content').innerHTML = items.map(x => `<div class="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5 mb-2 hover:bg-black/50 transition"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full ${x.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}"></div><div><div class="text-sm text-white font-bold">${x.desc}</div><div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">${x.cat} • ${x.acc}</div></div></div><div class="${x.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-sm font-bold bg-white/5 px-2 py-1 rounded-lg cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(x).replace(/'/g, "&#39;")}'>${fmt(x.amt, x.curr)}</div></div>`).join('');
                 document.getElementById('calendar-detail-modal').classList.remove('hidden');
             };
         }
@@ -498,7 +667,7 @@ function renderDashWidgets(data) {
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">${d.date} • ${d.cat}</div>
             </div>
         </div>
-        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'}">
+        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>
             ${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}
         </div>
     </div>
@@ -624,5 +793,82 @@ async function loadFromSpreadsheet() {
             status.style.color = '#ef4444';
         }
         alert("Gagal menarik data: " + err.message);
+    }
+}
+
+// ---------------- Rates and Gold Sync Logic ----------------
+function updateRatesDisplay() {
+    const display = document.getElementById('currentRatesDisplay');
+    if (!display) return;
+    
+    display.innerHTML = `
+        <div class="flex flex-col items-end">
+            <span class="text-[10px] text-slate-500 font-bold uppercase mb-0.5">💵 USD Kurs</span>
+            <span class="text-emerald-400 font-bold">${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}</span>
+        </div>
+        <div class="flex flex-col items-end ml-2">
+            <span class="text-[10px] text-slate-500 font-bold uppercase mb-0.5">🥇 Gold / g</span>
+            <span class="text-yellow-400 font-bold">${fmt(GOLD_PRICE, 'IDR').replace('IDR', '').trim()}</span>
+        </div>
+    `;
+}
+
+async function fetchKurs() {
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Fetching USD...';
+    try {
+        const resp = await fetch('https://open.er-api.com/v6/latest/USD');
+        const data = await resp.json();
+        if (data && data.rates && data.rates.IDR) {
+            USD_KURS = data.rates.IDR;
+            localStorage.setItem('USD_KURS', USD_KURS);
+            updateRatesDisplay();
+            renderAll();
+            if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400">✅ USD: ${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}</span>`;
+            showToast("USD Kurs updated!", "success");
+            return true;
+        }
+    } catch (e) {
+        console.error("Kurs Sync Error:", e);
+    }
+    if (syncStatus) syncStatus.innerHTML = `<span class="text-rose-400">❌ Failed USD</span>`;
+    return false;
+}
+
+async function fetchGoldPrice() {
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Fetching Gold...';
+
+    try {
+        const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
+        if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.usd && data.usd.xau) {
+                const xauUsd = 1 / data.usd.xau; // Price of 1 Troy Ounce in USD
+                GOLD_PRICE = Math.round((xauUsd * USD_KURS) / 31.1035);
+                localStorage.setItem('GOLD_PRICE', GOLD_PRICE);
+                updateRatesDisplay();
+                renderAll();
+                if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400"><i class="fas fa-check"></i> Gold updated</span>`;
+                showToast("Gold price updated!", "success");
+                return true;
+            }
+        }
+    } catch (e) {
+        console.error("Gold fetch failed:", e);
+    }
+    
+    if (syncStatus) syncStatus.innerHTML = `<span class="text-rose-400">❌ Failed Gold</span>`;
+    return false;
+}
+
+async function syncAllRates() {
+    const syncStatus = document.getElementById('syncStatus');
+    if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Syncing Rates...';
+    
+    const kursOk = await fetchKurs();
+    if (kursOk) {
+        await fetchGoldPrice();
+        if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400">✅ All rates updated (${new Date().toLocaleTimeString()})</span>`;
     }
 }
