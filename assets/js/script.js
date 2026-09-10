@@ -97,6 +97,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     document.getElementById('entry-cat').addEventListener('change', e => document.getElementById('entry-cat-other').classList.toggle('hidden', e.target.value !== 'Other'));
 
+    const updateCurrByAcc = (accElId, currElId) => {
+        document.getElementById(accElId).addEventListener('change', e => {
+            const val = e.target.value;
+            const currSel = document.getElementById(currElId);
+            if (val.includes('USD') || val.includes('Vallas')) currSel.value = 'USD';
+            else currSel.value = 'IDR';
+        });
+    };
+    updateCurrByAcc('entry-acc-source', 'entry-curr-source');
+    updateCurrByAcc('entry-acc-target', 'entry-curr-target');
+
     document.getElementById('add-entry-form').addEventListener('submit', e => {
         e.preventDefault();
         const btn = document.getElementById('submit-btn'); const origTxt = btn.innerHTML; btn.innerHTML = '<div class="loader w-5 h-5 border-2 border-white border-t-transparent"></div>'; btn.disabled = true;
@@ -106,7 +117,17 @@ document.addEventListener('DOMContentLoaded', () => {
         
         let txType = type === 'income' ? 'income' : 'expense';
         let cat = document.getElementById('entry-cat').value; 
-        if (cat === 'Other') cat = document.getElementById('entry-cat-other').value;
+        if (cat === 'Other') {
+            cat = document.getElementById('entry-cat-other').value.trim();
+            if (cat) {
+                let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
+                if (!customCats.includes(cat) && !DEFAULT_CONFIG.categories.includes(cat)) {
+                    customCats.push(cat);
+                    localStorage.setItem('customCategories', JSON.stringify(customCats));
+                    loadSystemConfig();
+                }
+            }
+        }
         if (type === 'transfer') cat = 'Transfer';
 
         const accSource = document.getElementById('entry-acc-source').value;
@@ -134,7 +155,17 @@ document.addEventListener('DOMContentLoaded', () => {
                 const accTarget = document.getElementById('entry-acc-target').value;
                 const currTarget = document.getElementById('entry-curr-target').value;
                 const amtTargetInput = document.getElementById('entry-amt-target').value;
-                const amtTarget = amtTargetInput ? Math.abs(parseFloat(amtTargetInput)) : amtSource;
+                
+                let amtTarget = amtSource;
+                if (amtTargetInput) {
+                    amtTarget = Math.abs(parseFloat(amtTargetInput));
+                } else {
+                    if (currSource === 'USD' && currTarget === 'IDR') {
+                        amtTarget = amtSource * USD_KURS;
+                    } else if (currSource === 'IDR' && currTarget === 'USD') {
+                        amtTarget = amtSource / USD_KURS;
+                    }
+                }
 
                 if (accSource === accTarget && currSource === currTarget) {
                     showToast("Source and Target are identical!", 'error');
@@ -301,7 +332,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     ['filter-start', 'filter-end', 'filter-cat', 'filter-acc', 'filter-search'].forEach(i => document.getElementById(i).addEventListener('input', renderAll));
-    document.getElementById('chart-currency-toggle').addEventListener('change', () => updateChart(masterData));
+    const dashPeriodEl = document.getElementById('dashboard-period');
+    if (dashPeriodEl) dashPeriodEl.addEventListener('change', renderAll);
+    document.getElementById('chart-currency-toggle').addEventListener('change', () => {
+        const dashPeriod = document.getElementById('dashboard-period') ? document.getElementById('dashboard-period').value : 'month';
+        updateChart(filterDataByPeriod(masterData, dashPeriod));
+    });
     document.querySelectorAll('.sortable').forEach(s => s.addEventListener('click', e => { sortState.k = e.target.dataset.sort; sortState.o = sortState.o === 'asc' ? 'desc' : 'asc'; renderAll(); }));
     
     document.getElementById('settings-btn').addEventListener('click', () => {
@@ -346,6 +382,13 @@ document.addEventListener('DOMContentLoaded', () => {
     }, 500);
 });
 
+function getAllCategories() {
+    const customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
+    const deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
+    let all = [...new Set([...DEFAULT_CONFIG.categories, ...customCats])];
+    return all.filter(c => !deletedCats.includes(c)).sort();
+}
+
 function loadSystemConfig() {
     const selAccS = document.getElementById('entry-acc-source');
     const selAccT = document.getElementById('entry-acc-target');
@@ -355,8 +398,9 @@ function loadSystemConfig() {
     selAccS.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
     selAccT.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
     
-    const cats = DEFAULT_CONFIG.categories;
-    selCat.innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+    const allCats = getAllCategories();
+    
+    selCat.innerHTML = allCats.map(c => `<option value="${c}">${c}</option>`).join('');
     selCat.innerHTML += '<option value="Other">Other...</option>';
 }
 
@@ -380,9 +424,21 @@ function resetForm() {
 }
 
 function fetchData() {
-    const rawTxs = getTransactions();
+    let rawTxs = getTransactions();
+    let changed = false;
     masterData = [];
     rawTxs.forEach(t => {
+        let acc = t.paymentMethod || 'Cash';
+        let normalizedAcc = acc.trim();
+        const match = DEFAULT_CONFIG.paymentMethods.find(m => m.toLowerCase() === normalizedAcc.toLowerCase());
+        if (match && match !== acc) {
+            t.paymentMethod = match;
+            changed = true;
+        } else if (normalizedAcc !== acc) {
+            t.paymentMethod = normalizedAcc;
+            changed = true;
+        }
+
         masterData.push({
             id: t.id,
             type: t.type,
@@ -394,6 +450,10 @@ function fetchData() {
             amt: parseFloat(t.amount)
         });
     });
+
+    if (changed) {
+        saveTransactions(rawTxs);
+    }
 
     const cats = [...new Set(masterData.map(d => d.cat))].sort(), accs = [...new Set(masterData.map(d => d.acc))].sort();
     document.getElementById('filter-cat').innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option>${c}</option>`).join('');
@@ -416,26 +476,73 @@ window.toggleCurrency = (id, usdVal) => {
     if (el.textContent.includes('$')) { const idrVal = usdVal * USD_KURS; el.textContent = fmt(idrVal, 'IDR'); el.classList.add('text-yellow-400'); } else { el.textContent = fmt(usdVal, 'USD'); el.classList.remove('text-yellow-400'); }
 };
 
+function filterDataByPeriod(data, period) {
+    if (period === 'all') return data;
+    const todayDate = new Date();
+    let dashStartDate = null, dashEndDate = null;
+    if (period === 'today') {
+        dashStartDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+        dashEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
+    } else if (period === 'month') {
+        dashStartDate = new Date(todayDate.getFullYear(), todayDate.getMonth(), 1);
+        dashEndDate = new Date(todayDate.getFullYear(), todayDate.getMonth() + 1, 0);
+    } else if (period === 'week') {
+        const dDate = new Date();
+        const day = dDate.getDay();
+        const diff = dDate.getDate() - day + (day === 0 ? -6 : 1);
+        dashStartDate = new Date(dDate.setDate(diff));
+        dashStartDate.setHours(0,0,0,0);
+        dashEndDate = new Date(dashStartDate);
+        dashEndDate.setDate(dashStartDate.getDate() + 6);
+    }
+    
+    return data.filter(d => {
+        const dObj = new Date(d.date);
+        dObj.setHours(0,0,0,0);
+        return dObj >= dashStartDate && dObj <= dashEndDate;
+    });
+}
+
 function renderAll() {
     const bals = {}; let incIDR = 0, expIDR = 0, incUSD = 0, expUSD = 0;
+    const dashPeriod = document.getElementById('dashboard-period') ? document.getElementById('dashboard-period').value : 'month';
+    const dashFilteredData = filterDataByPeriod(masterData, dashPeriod);
+    
+    const lbl = document.getElementById('top-cat-period-lbl');
+    if (lbl) {
+        if (dashPeriod === 'today') lbl.textContent = '(Today)';
+        else if (dashPeriod === 'week') lbl.textContent = '(This Week)';
+        else if (dashPeriod === 'month') lbl.textContent = '(This Month)';
+        else lbl.textContent = '(All Time)';
+    }
     
     // Initialize all payment methods to 0 balance
+    const defaultKeys = new Set();
     DEFAULT_CONFIG.paymentMethods.forEach(method => {
         let curr = 'IDR';
         if (method.includes('USD')) curr = 'USD';
         if (method === 'Gold') curr = 'IDR';
         const k = `${method}-${curr}`;
         bals[k] = { n: method, c: curr, v: 0 };
+        defaultKeys.add(k);
     });
 
+    // Calculate all-time balances
     masterData.forEach(d => {
         const k = `${d.acc}-${d.curr}`;
         if (!bals[k]) bals[k] = { n: d.acc, c: d.curr, v: 0 };
         if (d.type === 'income') {
             bals[k].v += d.amt;
-            if (d.cat !== 'Transfer' && d.cat !== 'Initial Balance') { if (d.curr === 'IDR') incIDR += d.amt; else incUSD += d.amt; }
         } else {
             bals[k].v -= d.amt;
+        }
+    });
+
+    // Calculate income/expense based on dashboard period
+    dashFilteredData.forEach(d => {
+        if (d.type === 'income') {
+            if (d.cat !== 'Transfer' && d.cat !== 'Initial Balance') { if (d.curr === 'IDR') incIDR += d.amt; else incUSD += d.amt; }
+        } else {
             if (d.cat !== 'Transfer') { if (d.curr === 'IDR') expIDR += d.amt; else expUSD += d.amt; }
         }
     });
@@ -444,6 +551,10 @@ function renderAll() {
     const investments = [];
     
     Object.values(bals).sort((a, b) => a.n.localeCompare(b.n)).forEach((b, idx) => {
+        const k = `${b.n}-${b.c}`;
+        // Hide 0 balance accounts that are not in default config
+        if (b.v === 0 && !defaultKeys.has(k)) return;
+        
         if (b.n === 'Gold' || b.n === 'Stocks') {
             investments.push({...b, id: `inv-${idx}`});
         } else {
@@ -462,12 +573,14 @@ function renderAll() {
         else idrEquivalent = b.v;
 
         return `
-        <div class="formal-card p-4 flex flex-col justify-center min-h-[80px] relative group">
-            <span class="text-[10px] text-slate-500 uppercase font-bold tracking-widest truncate mb-1" title="${b.n}">${b.n}</span>
-            <span id="${b.id}" class="font-bold font-mono text-sm tracking-tighter truncate ${b.v >= 0 ? (isGold || b.n === 'Stocks' ? 'text-yellow-600' : 'text-slate-800') : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-balance-edit" data-acc="${b.n}" data-curr="${b.c}" data-val="${b.v}">
-                ${displayVal}
-            </span>
-            ${(isUSD || isGold) ? `<div class="absolute top-2 right-2 text-[8px] bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 transition font-mono whitespace-nowrap overflow-hidden max-w-[90%] group-hover:text-slate-800 border border-slate-200">${isGold ? 'Rp ' + fmt(idrEquivalent, 'IDR').replace('IDR','').trim() : '<i class="fas fa-exchange-alt"></i>'}</div>` : ''}
+        <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-100 transition group">
+            <span class="text-xs text-slate-700 font-bold truncate max-w-[140px]" title="${b.n}">${b.n}</span>
+            <div class="text-right flex flex-col">
+                <span id="${b.id}" class="font-bold font-mono text-sm tracking-tighter ${b.v >= 0 ? (isGold || b.n === 'Stocks' ? 'text-yellow-600' : 'text-slate-800') : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-balance-edit" data-acc="${b.n}" data-curr="${b.c}" data-val="${b.v}">
+                    ${displayVal}
+                </span>
+                ${(isUSD || isGold) ? `<span class="text-[9px] text-slate-400 font-mono mt-0.5">${isGold ? 'Rp ' + fmt(idrEquivalent, 'IDR').replace('IDR','').trim() : 'Rate applied'}</span>` : ''}
+            </div>
         </div>
         `;
     };
@@ -563,7 +676,7 @@ function renderAll() {
 `).join('');
     if (filtered.length === 0) document.getElementById('data-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-500 text-sm italic">No data found</td></tr>';
 
-    renderDaily(masterData); renderCalendar(masterData); updateChart(masterData); updateTrendChart(masterData); renderDashWidgets(masterData);
+    renderDaily(masterData); renderCalendar(masterData); updateChart(dashFilteredData); updateTrendChart(masterData); renderDashWidgets(dashFilteredData);
 }
 
 function renderDaily(data) {
@@ -657,52 +770,50 @@ function renderDashWidgets(data) {
     const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
     const recent = sortedData.slice(0, 5);
     document.getElementById('dash-recent-list').innerHTML = recent.map(d => `
-    <div class="bg-black/20 p-3 rounded-2xl flex justify-between items-center border border-white/5 hover:border-white/10 transition">
+    <div class="bg-slate-50 p-3 rounded-2xl flex justify-between items-center border border-slate-100 hover:border-slate-200 transition">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${d.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${d.type === 'income' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}">
                 <i class="fas ${d.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
             </div>
             <div>
-                <div class="text-sm font-bold text-slate-200 truncate max-w-[150px] sm:max-w-[200px]">${d.desc}</div>
+                <div class="text-sm font-bold text-slate-800 truncate max-w-[150px] sm:max-w-[200px]">${d.desc}</div>
                 <div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">${d.date} • ${d.cat}</div>
             </div>
         </div>
-        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>
+        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>
             ${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}
         </div>
     </div>
 `).join('');
     if (recent.length === 0) document.getElementById('dash-recent-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No activity yet</div>';
 
-    const now = new Date();
-    const thisMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-    const thisMonthExps = data.filter(d => d.type === 'expense' && d.cat !== 'Transfer' && d.date.startsWith(thisMonth));
+    const periodExps = data.filter(d => d.type === 'expense' && d.cat !== 'Transfer');
 
-    let totalThisMonth = 0;
+    let totalPeriod = 0;
     const catTotals = {};
-    thisMonthExps.forEach(d => {
+    periodExps.forEach(d => {
         const amtIDR = d.curr === 'USD' ? d.amt * USD_KURS : d.amt;
         catTotals[d.cat] = (catTotals[d.cat] || 0) + amtIDR;
-        totalThisMonth += amtIDR;
+        totalPeriod += amtIDR;
     });
 
-    const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]).slice(0, 4);
+    const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
     const chartColors = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#F43F5E'];
 
     document.getElementById('dash-top-cat-list').innerHTML = topCats.map((c, i) => {
-        const percentage = totalThisMonth > 0 ? (c[1] / totalThisMonth) * 100 : 0;
+        const percentage = totalPeriod > 0 ? (c[1] / totalPeriod) * 100 : 0;
         return `
     <div class="space-y-1.5">
         <div class="flex justify-between items-end">
-            <span class="text-xs font-bold text-slate-300">${c[0]}</span>
-            <span class="font-mono text-xs text-white bg-white/5 px-2 py-0.5 rounded-md border border-white/5">${fmt(c[1], 'IDR')}</span>
+            <span class="text-xs font-bold text-slate-700">${c[0]} <span class="text-[10px] text-slate-500 ml-1">(${percentage.toFixed(1)}%)</span></span>
+            <span class="font-mono text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">${fmt(c[1], 'IDR')}</span>
         </div>
-        <div class="w-full h-2 bg-black/40 rounded-full overflow-hidden border border-white/5">
+        <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
             <div class="h-full rounded-full" style="width: ${percentage}%; background-color: ${chartColors[i % chartColors.length]}; box-shadow: 0 0 10px ${chartColors[i % chartColors.length]}80;"></div>
         </div>
     </div>`;
     }).join('');
-    if (topCats.length === 0) document.getElementById('dash-top-cat-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No expenses this month</div>';
+    if (topCats.length === 0) document.getElementById('dash-top-cat-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No expenses in this period</div>';
 }
 
 // ---------------- Google Sheets Sync Logic ----------------
@@ -871,4 +982,148 @@ async function syncAllRates() {
         await fetchGoldPrice();
         if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400">✅ All rates updated (${new Date().toLocaleTimeString()})</span>`;
     }
+}
+// -------------------------------------------------------------
+// CATEGORY MANAGEMENT
+// -------------------------------------------------------------
+
+function openCategoryManager() {
+    document.getElementById('category-modal').classList.remove('hidden');
+    renderCategoryManager();
+}
+
+function closeCategoryManager() {
+    document.getElementById('category-modal').classList.add('hidden');
+    loadSystemConfig();
+}
+
+function renderCategoryManager() {
+    const container = document.getElementById('category-list-container');
+    const allCats = getAllCategories();
+    
+    if (allCats.length === 0) {
+        container.innerHTML = '<div class="text-center text-slate-400 text-sm py-4">Tidak ada kategori.</div>';
+        return;
+    }
+    
+    container.innerHTML = allCats.map(cat => `
+        <div class="flex justify-between items-center bg-slate-50 border border-slate-100 p-3 rounded-xl hover:border-slate-200 transition group">
+            <div class="flex-1 font-semibold text-sm text-slate-700" id="cat-text-${btoa(cat).replace(/=/g, '')}">${cat}</div>
+            <div class="hidden flex-1" id="cat-edit-${btoa(cat).replace(/=/g, '')}">
+                <input type="text" class="input-formal rounded-lg px-2 py-1 text-sm w-full border border-slate-200" value="${cat}" id="cat-input-${btoa(cat).replace(/=/g, '')}">
+            </div>
+            <div class="flex gap-2 ml-4">
+                <button type="button" onclick="editCategoryMode('${btoa(cat).replace(/=/g, '')}')" class="text-slate-400 hover:text-indigo-600 transition" id="cat-edit-btn-${btoa(cat).replace(/=/g, '')}"><i class="fas fa-edit"></i></button>
+                <button type="button" onclick="saveCategoryEdit('${btoa(cat).replace(/=/g, '')}', '${cat.replace(/'/g, "\\'")}')" class="hidden text-emerald-500 hover:text-emerald-600 transition" id="cat-save-btn-${btoa(cat).replace(/=/g, '')}"><i class="fas fa-check"></i></button>
+                <button type="button" onclick="deleteCategory('${cat.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-rose-600 transition"><i class="fas fa-trash"></i></button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function editCategoryMode(b64id) {
+    document.getElementById(`cat-text-${b64id}`).classList.add('hidden');
+    document.getElementById(`cat-edit-${b64id}`).classList.remove('hidden');
+    document.getElementById(`cat-edit-btn-${b64id}`).classList.add('hidden');
+    document.getElementById(`cat-save-btn-${b64id}`).classList.remove('hidden');
+    document.getElementById(`cat-input-${b64id}`).focus();
+}
+
+function saveCategoryEdit(b64id, oldName) {
+    const newName = document.getElementById(`cat-input-${b64id}`).value.trim();
+    if (!newName || newName === oldName) {
+        renderCategoryManager();
+        return;
+    }
+    renameCategory(oldName, newName);
+}
+
+function renameCategory(oldName, newName) {
+    let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
+    let deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
+    
+    const allCats = getAllCategories();
+    if (allCats.includes(newName) && newName !== oldName) {
+        alert("Kategori dengan nama tersebut sudah ada!");
+        return;
+    }
+
+    if (DEFAULT_CONFIG.categories.includes(oldName)) {
+        if (!deletedCats.includes(oldName)) {
+            deletedCats.push(oldName);
+            localStorage.setItem('deletedCategories', JSON.stringify(deletedCats));
+        }
+        if (!customCats.includes(newName)) customCats.push(newName);
+    } else {
+        const idx = customCats.indexOf(oldName);
+        if (idx > -1) {
+            customCats[idx] = newName;
+        } else {
+            customCats.push(newName);
+        }
+    }
+    localStorage.setItem('customCategories', JSON.stringify(customCats));
+
+    let txs = getTransactions();
+    let updated = false;
+    txs.forEach(t => {
+        if (t.category === oldName) {
+            t.category = newName;
+            updated = true;
+        }
+    });
+    
+    if (updated) {
+        saveTransactions(txs);
+        fetchData();
+        if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
+            renderAll();
+        }
+    }
+    
+    renderCategoryManager();
+}
+
+function addNewCategory() {
+    const input = document.getElementById('new-cat-input');
+    const newName = input.value.trim();
+    if (!newName) return;
+    
+    const allCats = getAllCategories();
+    if (allCats.includes(newName)) {
+        alert("Kategori sudah ada!");
+        return;
+    }
+    
+    let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
+    customCats.push(newName);
+    localStorage.setItem('customCategories', JSON.stringify(customCats));
+    
+    input.value = '';
+    renderCategoryManager();
+}
+
+function deleteCategory(catName) {
+    if (!confirm(`Hapus kategori "${catName}"? Transaksi lama yang memakai kategori ini tidak akan diubah.`)) return;
+    
+    if (DEFAULT_CONFIG.categories.includes(catName)) {
+        let deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
+        if (!deletedCats.includes(catName)) {
+            deletedCats.push(catName);
+            localStorage.setItem('deletedCategories', JSON.stringify(deletedCats));
+        }
+    } else {
+        let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
+        customCats = customCats.filter(c => c !== catName);
+        localStorage.setItem('customCategories', JSON.stringify(customCats));
+    }
+    
+    renderCategoryManager();
+}
+
+function resetCategories() {
+    if (!confirm("Kembalikan semua kategori ke bawaan pabrik? Kategori kustom akan terhapus.")) return;
+    localStorage.removeItem('customCategories');
+    localStorage.removeItem('deletedCategories');
+    renderCategoryManager();
 }

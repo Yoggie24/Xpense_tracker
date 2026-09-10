@@ -34,6 +34,40 @@
             border-color: #2563eb;
             outline: none;
         }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #e-statement-print-area, #e-statement-print-area * {
+                visibility: visible;
+            }
+            #e-statement-print-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 100%;
+                background: white;
+                padding: 20px;
+                display: block !important;
+            }
+            /* Make sure table lines are printed nicely */
+            #e-statement-print-area table {
+                width: 100%;
+                border-collapse: collapse;
+            }
+            #e-statement-print-area th, #e-statement-print-area td {
+                border: 1px solid #cbd5e1;
+                padding: 10px;
+            }
+            #e-statement-print-area th {
+                background-color: #f1f5f9 !important;
+                -webkit-print-color-adjust: exact;
+                color-adjust: exact;
+            }
+            .text-emerald-600 { color: #059669 !important; }
+            .text-rose-600 { color: #e11d48 !important; }
+        }
     </style>
     <script>
         tailwind.config = {
@@ -67,231 +101,247 @@
     <link rel="stylesheet" href="assets/css/style.css">
 </head>
 
-<body
-    class="bg-slate-50 min-h-screen text-slate-700 pb-24 md:pb-10 selection:bg-blue-100 relative overflow-x-hidden">
+<<body
+    class="bg-slate-50 min-h-screen text-slate-700 selection:bg-blue-100 flex overflow-hidden">
 
     <div id="init-loader" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-theme-bg text-slate-900">
         <div class="loader mb-4"></div>
         <p class="text-sm text-theme-primary animate-pulse font-medium">Loading FinTracker...</p>
     </div>
 
-    
-
-    <!-- Main Content -->
-    <div id="main-content" class=" w-full max-w-[1600px] mx-auto flex flex-col min-h-screen relative z-10">
-
-        <!-- Top Header (Desktop & Mobile) -->
-        <div
-            class="sticky top-0 z-40 bg-white border-b border-slate-200 px-4 py-3 md:py-4 flex justify-between items-center shadow-sm md:mx-4 md:mt-4 md:rounded-2xl md:border">
-            <div class="flex items-center gap-3">
-                <div
-                    class="w-8 h-8 rounded-lg bg-indigo-600 flex items-center justify-center shadow-md">
-                    <i class="fas fa-wallet text-white text-sm"></i>
-                </div>
-                <h1 class="text-lg md:text-xl font-bold text-slate-900 tracking-tight">FinTracker</h1>
+    <!-- Desktop Sidebar -->
+    <aside class="hidden md:flex flex-col w-[260px] bg-[#18342E] text-slate-300 h-full shadow-xl z-50 flex-shrink-0">
+        <!-- Logo -->
+        <div class="p-6 flex items-center gap-3 border-b border-white/10">
+            <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-md text-white">
+                <i class="fas fa-wallet text-sm"></i>
             </div>
-
-            <!-- Desktop Navigation (Hidden on Mobile) -->
-            <nav class="hidden md:flex space-x-1 p-1 bg-slate-100 rounded-xl">
-                <button id="desk-tab-dashboard"
-                    class="desk-nav-btn desk-nav-active px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-indigo-600 transition-all"
-                    data-target="view-dashboard">Dashboard</button>
-                <button id="desk-tab-transactions"
-                    class="desk-nav-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-indigo-600 transition-all"
-                    data-target="view-transactions">Transactions</button>
-                <button id="desk-tab-add"
-                    class="desk-nav-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-indigo-600 transition-all"
-                    data-target="view-add">Add/Transfer</button>
-                <button id="desk-tab-daily"
-                    class="desk-nav-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-indigo-600 transition-all"
-                    data-target="view-daily">Daily</button>
-                <button id="desk-tab-calendar"
-                    class="desk-nav-btn px-4 py-2 text-sm font-medium rounded-lg text-slate-600 hover:text-indigo-600 transition-all"
-                    data-target="view-calendar">Calendar</button>
-            </nav>
-
-            <div class="flex gap-2">
-                <button id="settings-btn"
-                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition"
-                    title="Settings"><i class="fas fa-cog"></i></button>
-
-                <button id="export-btn"
-                    class="bg-slate-100 hover:bg-slate-200 text-slate-600 w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition"
-                    title="Screenshot"><i class="fas fa-camera"></i></button>
-                <button id="logout-btn"
-                    class="bg-rose-50 hover:bg-rose-100 text-rose-600 w-9 h-9 md:w-10 md:h-10 rounded-xl flex items-center justify-center transition"><i
-                        class="fas fa-power-off"></i></button>
-            </div>
+            <h1 class="text-xl font-bold text-white tracking-tight">FinTracker <span class="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded ml-1 text-white">PRO</span></h1>
         </div>
 
-        <div id="tab-content" class="p-4 md:p-6 flex-grow max-w-7xl mx-auto w-full">
+        <!-- Navigation -->
+        <div class="flex-1 overflow-y-auto py-4 custom-scroll">
+            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">MENU UTAMA</div>
+            <nav class="space-y-1 px-3 mb-8">
+                <button class="desk-nav-btn desk-nav-active w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all" data-target="view-dashboard">
+                    <i class="fas fa-border-all w-5"></i> Dashboard
+                </button>
+                <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-add">
+                    <i class="fas fa-plus-circle w-5"></i> Tambah Transaksi
+                </button>
+                <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-transactions">
+                    <i class="fas fa-list-ul w-5"></i> Riwayat Transaksi
+                </button>
+            </nav>
+
+            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">MODUL</div>
+            <nav class="space-y-1 px-3 mb-8">
+                <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-daily">
+                    <i class="fas fa-calendar-day w-5"></i> Laporan Harian
+                </button>
+                <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-calendar">
+                    <i class="far fa-calendar-alt w-5"></i> Kalender
+                </button>
+            </nav>
+            
+            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">BANTUAN</div>
+            <nav class="space-y-1 px-3">
+                <button id="settings-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5">
+                    <i class="fas fa-cog w-5"></i> Pengaturan
+                </button>
+            </nav>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <div id="main-content" class="flex-1 flex flex-col h-screen overflow-y-auto relative w-full pb-24 md:pb-0">
+
+        <!-- Top Header -->
+        <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div>
+                <h2 class="text-2xl font-bold text-slate-800">Selamat Pagi, Boss!</h2>
+                <p class="text-xs text-slate-500 mt-1">Berikut ringkasan finansial kamu hari ini.</p>
+            </div>
+            
+            <div class="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
+                <div class="hidden xl:block text-right mr-2 flex-shrink-0">
+                    <div id="header-date" class="text-sm font-bold text-slate-800"></div>
+                    <div id="header-time" class="text-[10px] text-slate-500"></div>
+                </div>
+                
+                <button onclick="document.querySelector('[data-target=\'view-add\']').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap shadow-sm shadow-emerald-200 flex-shrink-0">QUICK SPEND</button>
+                
+                <div class="flex bg-slate-100 p-1 rounded-full border border-slate-200 flex-shrink-0">
+                    <select id="dashboard-period" class="bg-transparent text-xs font-semibold rounded-full px-3 py-1.5 text-slate-700 outline-none cursor-pointer hover:bg-white transition appearance-none text-center">
+                        <option value="today">Hari Ini</option>
+                        <option value="week">Minggu Ini</option>
+                        <option value="month" selected>Bulan Ini</option>
+                        <option value="all">Semua Waktu</option>
+                    </select>
+                </div>
+                
+                <div class="flex items-center gap-2 flex-shrink-0">
+                    <button id="syncAll" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Sync"><i class="fas fa-sync-alt text-xs"></i></button>
+                    <button id="export-btn" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Screenshot"><i class="fas fa-camera text-xs"></i></button>
+                    <button id="logout-btn" class="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm"><i class="fas fa-power-off text-xs"></i></button>
+                </div>
+            </div>
+        </header>
+
+        <div id="tab-content" class="p-4 md:p-6 w-full max-w-[1920px] mx-auto flex-grow">
 
             <!-- VIEW: DASHBOARD -->
             <div id="view-dashboard" class="tab-view space-y-6">
-                <div class="grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-5">
 
-                    <div id="summary-income"
-                        class="formal-card p-5 flex flex-col justify-between min-h-[110px] sm:min-h-[140px]">
-                        <div
-                            class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div
-                                class="w-6 h-6 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-                                <i class="fas fa-arrow-down text-[10px]"></i>
-                            </div> Income
-                        </div>
-                        <div
-                            class="text-emerald-600 font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter stat-value">
-                            ...</div>
-                    </div>
-
-                    <div id="summary-expense"
-                        class="formal-card p-5 flex flex-col justify-between min-h-[110px] sm:min-h-[140px]">
-                        <div
-                            class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div
-                                class="w-6 h-6 rounded-full bg-rose-100 flex items-center justify-center text-rose-600">
-                                <i class="fas fa-arrow-up text-[10px]"></i>
-                            </div> Expense
-                        </div>
-                        <div
-                            class="text-rose-600 font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter stat-value">
-                            ...</div>
-                    </div>
-
-                    <div id="summary-net"
-                        class="formal-card p-5 flex flex-col justify-between min-h-[110px] sm:min-h-[140px]">
-                        <div
-                            class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div
-                                class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center text-slate-600">
-                                <i class="fas fa-scale-balanced text-[10px]"></i>
-                            </div> Net Flow
-                        </div>
-                        <div
-                            class="text-slate-800 font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter stat-value">
-                            ...</div>
-                    </div>
+                <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
 
                     <!-- Available Cash -->
-                    <div id="summary-cash"
-                        class="formal-card p-5 flex flex-col justify-between min-h-[110px] sm:min-h-[140px]">
-                        <div
-                            class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div
-                                class="w-6 h-6 rounded-full bg-cyan-100 flex items-center justify-center text-cyan-600">
-                                <i class="fas fa-money-bill-wave text-[10px]"></i>
-                            </div> Available Cash
+                    <div id="summary-cash" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                                <i class="fas fa-wallet text-[9px]"></i>
+                            </div> TOTAL SALDO
                         </div>
-                        <div
-                            class="text-cyan-600 font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter stat-value">
-                            ...</div>
+                        <div class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                    </div>
+
+                    <!-- Income -->
+                    <div id="summary-income" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                                <i class="fas fa-arrow-down text-[9px]"></i>
+                            </div> PEMASUKAN
+                        </div>
+                        <div class="text-emerald-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                    </div>
+
+                    <!-- Expense -->
+                    <div id="summary-expense" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+                                <i class="fas fa-arrow-up text-[9px]"></i>
+                            </div> PENGELUARAN
+                        </div>
+                        <div class="text-rose-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                    </div>
+
+                    <!-- Net Flow -->
+                    <div id="summary-net" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                                <i class="fas fa-scale-balanced text-[9px]"></i>
+                            </div> NET FLOW
+                        </div>
+                        <div class="text-blue-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
                     <!-- Investments -->
-                    <div id="summary-invest"
-                        class="formal-card p-5 flex flex-col justify-between min-h-[110px] sm:min-h-[140px]">
-                        <div
-                            class="text-[10px] sm:text-xs text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div
-                                class="w-6 h-6 rounded-full bg-yellow-100 flex items-center justify-center text-yellow-600">
-                                <i class="fas fa-chart-line text-[10px]"></i>
-                            </div> Investments
+                    <div id="summary-invest" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-600">
+                                <i class="fas fa-chart-pie text-[9px]"></i>
+                            </div> INVESTASI
                         </div>
-                        <div
-                            class="text-yellow-600 font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter stat-value">
-                            ...</div>
+                        <div class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
-                    <div id="summary-wealth"
-                        class="bg-indigo-600 p-5 rounded-3xl flex flex-col justify-between min-h-[110px] sm:min-h-[140px] shadow-lg">
-                        <div class="flex justify-between items-start mb-2">
-                            <div
-                                class="text-[10px] sm:text-xs text-indigo-100 uppercase font-bold tracking-wider flex items-center gap-2">
-                                <div
-                                    class="w-6 h-6 rounded-full bg-indigo-500 flex items-center justify-center text-white">
-                                    <i class="fas fa-wallet text-[10px]"></i>
-                                </div> Net Worth
+                    <!-- Net Worth -->
+                    <div id="summary-wealth" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition relative overflow-hidden">
+                        <div class="absolute -right-4 -bottom-4 opacity-5"><i class="fas fa-gem text-6xl"></i></div>
+                        <div class="flex justify-between items-start mb-2 relative z-10">
+                            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2">
+                                <div class="w-5 h-5 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500">
+                                    <i class="fas fa-wallet text-[9px]"></i>
+                                </div> KEKAYAAN
                             </div>
-                            <div class="text-[9px] sm:text-[10px] text-indigo-100 bg-indigo-700 px-2 py-1 rounded-lg font-mono"
-                                id="rate-display">Rate: ...</div>
+                            <div class="text-[8px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono border border-indigo-100 hidden sm:block" id="rate-display">Rate: ...</div>
                         </div>
-                        <div id="wealth-display"
-                            class="text-white font-bold text-[13px] sm:text-base md:text-2xl truncate font-mono tracking-tighter mt-auto">
-                            ...</div>
+                        <div id="wealth-display" class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight mt-auto relative z-10">...</div>
                     </div>
                 </div>
 
-                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4 sm:gap-6">
-                    <!-- Pie Chart -->
-                    <div class="formal-card p-5 flex flex-col h-[400px] lg:h-[450px]">
-                        <div class="flex justify-between items-center mb-4">
-                            <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2"><i
-                                    class="fas fa-chart-pie text-indigo-600"></i> Breakdown</h3>
-                            <select id="chart-currency-toggle"
-                                class="bg-slate-50 border border-slate-200 text-xs rounded-lg px-2 py-1.5 text-slate-600 outline-none">
+                <!-- Row 2: Charts and Activity -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mt-4 sm:mt-6">
+                    
+                    <!-- Trend Chart (Arus Kas) -->
+                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 h-[320px] 2xl:h-[400px] flex flex-col lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-chart-line text-indigo-500"></i> Arus Kas (Bulan Ini)</h3>
+                        </div>
+                        <div class="relative flex-grow w-full"><canvas id="trend-line-chart"></canvas></div>
+                    </div>
+
+                    <!-- Pie Chart (Breakdown) -->
+                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
+                        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-chart-pie text-emerald-500"></i> Rincian Pengeluaran</h3>
+                            <select id="chart-currency-toggle" class="bg-slate-50 border border-slate-200 text-[10px] font-bold rounded-lg px-2 py-1 text-slate-600 outline-none">
                                 <option value="IDR">IDR</option>
                                 <option value="USD">USD</option>
                             </select>
                         </div>
-                        <div class="relative flex-grow flex items-center justify-center overflow-hidden">
-                            <div class="w-full h-full max-h-[220px] sm:max-h-[260px]"><canvas
-                                    id="expense-pie-chart"></canvas></div>
-                        </div>
-                        <div id="expense-details"
-                            class="mt-4 space-y-2 overflow-y-auto h-32 pr-2 custom-scroll border-t border-slate-100 pt-3">
+                        <div class="flex flex-col sm:flex-row h-full overflow-hidden items-center">
+                            <div class="w-full sm:w-1/2 relative flex items-center justify-center p-2">
+                                <canvas id="expense-pie-chart"></canvas>
+                            </div>
+                            <div id="expense-details" class="w-full sm:w-1/2 mt-4 sm:mt-0 sm:pl-4 space-y-2 overflow-y-auto max-h-full custom-scroll text-xs">
+                            </div>
                         </div>
                     </div>
 
-                    <!-- Trend Chart -->
-                    <div class="formal-card p-5 h-[400px] lg:h-[450px] flex flex-col">
+                    <!-- Recent Activity -->
+                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-semibold text-slate-800 flex items-center gap-2"><i
-                                    class="fas fa-chart-line text-indigo-600"></i> 30-Day Trend</h3>
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-history text-slate-400"></i> Aktivitas Terakhir</h3>
+                            <a href="#" onclick="document.querySelector('[data-target=\'view-transactions\']').click(); return false;" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-600">Lihat semua</a>
                         </div>
-                        <div class="relative flex-grow w-full"><canvas id="trend-line-chart"></canvas></div>
-                    </div>
-                </div>
-
-                <!-- Live Rates & Sync -->
-                <div class="formal-card p-4 sm:p-5 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6">
-                    <div class="flex items-center gap-3">
-                        <button id="syncAll" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl transition font-bold text-xs sm:text-sm flex items-center gap-2">
-                            <i class="fas fa-sync-alt"></i> Sync Rates
-                        </button>
-                        <div id="syncStatus" class="text-[10px] text-slate-400 font-mono flex items-center h-full"></div>
-                    </div>
-                    <div id="currentRatesDisplay" class="flex gap-4 text-xs font-mono">
-                        <!-- Populated by JS -->
-                    </div>
-                </div>
-
-                <!-- Wallets -->
-                <div class="formal-card p-5 flex flex-col h-auto mt-4 sm:mt-6">
-                    <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2 flex-shrink-0">
-                        <i class="fas fa-wallet text-indigo-600"></i> Wallets
-                    </h3>
-                    <div id="account-balances-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"></div>
-                </div>
-
-                <!-- Investments -->
-                <div class="formal-card p-5 flex flex-col h-auto mt-4 sm:mt-6 border-yellow-200">
-                    <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2 flex-shrink-0">
-                        <i class="fas fa-chart-line text-yellow-600"></i> Investments
-                    </h3>
-                    <div id="investment-balances-container" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3"></div>
-                </div>
-
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 mt-4 sm:mt-6">
-                    <div class="formal-card p-5 lg:col-span-2 flex flex-col h-auto min-h-[300px]">
-                        <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2 flex-shrink-0"><i
-                                class="fas fa-history text-indigo-600"></i> Recent Activity</h3>
                         <div id="dash-recent-list" class="space-y-3 flex-grow overflow-y-auto custom-scroll pr-1"></div>
                     </div>
-                    <div class="formal-card p-5 flex flex-col h-auto min-h-[300px]">
-                        <h3 class="text-sm font-semibold text-slate-800 mb-4 flex items-center gap-2 flex-shrink-0"><i
-                                class="fas fa-fire text-orange-600"></i> Top Categories (This Month)</h3>
-                        <div id="dash-top-cat-list" class="space-y-4 flex-grow overflow-y-auto custom-scroll pr-1">
+
+                </div>
+
+                <!-- Row 3: Top Categories and Balances -->
+                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mt-4 sm:mt-6">
+                    
+                    <!-- Top Categories -->
+                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-fire text-orange-500"></i> Progres Kategori <span id="top-cat-period-lbl" class="text-[10px] font-normal text-slate-500 ml-1">(Bulan Ini)</span></h3>
                         </div>
+                        <div id="dash-top-cat-list" class="space-y-5 flex-grow overflow-y-auto custom-scroll pr-2 mt-2">
+                        </div>
+                    </div>
+
+                    <!-- Account Balances -->
+                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4 flex-shrink-0">
+                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-wallet text-indigo-500"></i> Saldo Akun</h3>
+                            <i class="fas fa-eye text-slate-400 text-xs cursor-pointer hover:text-slate-600 transition"></i>
+                        </div>
+                        
+                        <div class="flex-grow overflow-y-auto custom-scroll pr-2 space-y-4">
+                            <!-- Wallets -->
+                            <div id="account-balances-container" class="space-y-3"></div>
+                            
+                            <hr class="border-slate-100 my-4">
+                            
+                            <!-- Investments -->
+                            <div class="flex justify-between items-center mb-3">
+                                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Investasi</h4>
+                            </div>
+                            <div id="investment-balances-container" class="space-y-3"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Live Rates & Sync (Moved to Bottom or Hidden, Keeping for functionality) -->
+                <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6">
+                    <div class="flex items-center gap-3">
+                        <div id="syncStatus" class="text-[10px] text-slate-400 font-mono flex items-center h-full">System Ready.</div>
+                    </div>
+                    <div id="currentRatesDisplay" class="flex gap-4 text-xs font-mono text-slate-500">
+                        <!-- Populated by JS -->
                     </div>
                 </div>
             </div>
@@ -306,6 +356,8 @@
                         <button class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold" onclick="applyDatePreset('thisYear')">This Year</button>
                         <button class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-semibold"
                             onclick="applyDatePreset('clear')">Clear</button>
+                        <button class="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold ml-auto flex items-center gap-2"
+                            onclick="printEStatement()"><i class="fas fa-print"></i> Print E-Statement</button>
                     </div>
 
                     <div
@@ -489,8 +541,10 @@
                                     required>
                             </div>
                             <div id="category-group">
-                                <label
-                                    class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">Category</label>
+                                <div class="flex justify-between items-center mb-2 ml-1">
+                                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Category</label>
+                                    <button type="button" onclick="openCategoryManager()" class="text-[10px] text-indigo-500 hover:text-indigo-600 font-bold flex items-center gap-1" title="Manage Categories"><i class="fas fa-cog"></i> Manage</button>
+                                </div>
                                 <div class="relative">
                                     <select id="entry-cat"
                                         class="w-full input-formal rounded-xl px-4 py-3.5 text-sm appearance-none cursor-pointer"></select>
@@ -749,6 +803,89 @@
         class="hidden fixed top-5 left-1/2 transform -translate-x-1/2 bg-slate-900 text-white px-6 py-3 rounded-full shadow-lg border border-slate-700 z-[80] flex items-center gap-3 min-w-[200px] justify-center transition-all duration-300 translate-y-[-100px] opacity-0 font-medium">
     </div>
 
+    <!-- E-Statement Print Area (Hidden by default) -->
+    <div id="e-statement-print-area" class="hidden font-sans text-slate-800">
+        <div class="text-center mb-8 border-b pb-4">
+            <h1 class="text-3xl font-bold text-slate-900 mb-2">FinTracker E-Statement</h1>
+            <p class="text-base text-slate-500 font-medium" id="print-period-text">Period: -</p>
+        </div>
+        
+        <div class="flex justify-between mb-8">
+            <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1 mr-4">
+                <p class="text-xs text-emerald-800 font-bold uppercase tracking-wider mb-1">Total Income</p>
+                <p class="text-xl font-bold text-emerald-600 font-mono" id="print-total-income">0</p>
+            </div>
+            <div class="bg-rose-50 p-4 rounded-xl border border-rose-100 flex-1 mr-4">
+                <p class="text-xs text-rose-800 font-bold uppercase tracking-wider mb-1">Total Expense</p>
+                <p class="text-xl font-bold text-rose-600 font-mono" id="print-total-expense">0</p>
+            </div>
+            <div class="bg-slate-50 p-4 rounded-xl border border-slate-200 flex-1">
+                <p class="text-xs text-slate-600 font-bold uppercase tracking-wider mb-1">Net Flow</p>
+                <p class="text-xl font-bold text-slate-900 font-mono" id="print-net-flow">0</p>
+            </div>
+        </div>
+
+        <table class="w-full text-left text-sm border-collapse mb-8">
+            <thead>
+                <tr class="bg-slate-100 border-y border-slate-300">
+                    <th class="py-3 px-4 font-bold text-slate-700">Date</th>
+                    <th class="py-3 px-4 font-bold text-slate-700">Description</th>
+                    <th class="py-3 px-4 font-bold text-slate-700">Category</th>
+                    <th class="py-3 px-4 font-bold text-slate-700">Account</th>
+                    <th class="py-3 px-4 font-bold text-slate-700 text-right">Amount</th>
+                </tr>
+            </thead>
+            <tbody id="print-table-body" class="divide-y divide-slate-200">
+                <!-- Data will be injected here -->
+            </tbody>
+        </table>
+        <div class="text-center text-xs text-slate-400 font-medium pt-8 border-t border-slate-100">
+            Generated by FinTracker - <span id="print-generated-date"></span>
+        </div>
+    </div>
+    <!-- CATEGORY MANAGEMENT MODAL -->
+    <div id="category-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative flex flex-col max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100">
+                        <i class="fas fa-tags"></i>
+                    </div>
+                    Manajemen Kategori
+                </h2>
+                <button type="button" onclick="closeCategoryManager()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="flex gap-2 mb-4">
+                <input type="text" id="new-cat-input" class="flex-1 input-formal rounded-xl px-4 py-2.5 text-sm placeholder-slate-400" placeholder="Kategori baru...">
+                <button type="button" onclick="addNewCategory()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition"><i class="fas fa-plus"></i></button>
+            </div>
+
+            <div class="flex-grow overflow-y-auto custom-scroll space-y-2 pr-1" id="category-list-container">
+                <!-- List of categories will be rendered here -->
+            </div>
+            
+            <div class="mt-6 pt-4 border-t border-slate-100">
+                <button type="button" onclick="resetCategories()" class="text-xs text-slate-500 hover:text-rose-500 transition font-medium flex items-center gap-2">
+                    <i class="fas fa-undo"></i> Reset ke bawaan pabrik
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="assets/js/utils.js"></script>
+    <script src="assets/js/storage.js"></script>
+    <script src="assets/js/config.js"></script>
+    <script src="assets/js/rates.js"></script>
+    <script src="assets/js/charts.js"></script>
+    <script src="assets/js/balance.js"></script>
+    <script src="assets/js/transactions.js"></script>
+    <script src="assets/js/gsheet.js"></script>
+    <script src="assets/js/app.js"></script>
+    <script src="assets/js/auth.js"></script>
     <script src="assets/js/script.js"></script>
 </body>
 

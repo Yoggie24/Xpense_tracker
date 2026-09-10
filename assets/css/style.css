@@ -75,9 +75,8 @@ body {
 
         /* Desktop Nav Active State */
         .desk-nav-active {
-            background-color: rgba(79, 70, 229, 0.15) !important;
-            color: #818CF8 !important;
-            border-color: rgba(79, 70, 229, 0.3) !important;
+            background-color: rgba(255, 255, 255, 0.1) !important;
+            color: #ffffff !important;
         }
 
         .calendar-day {
