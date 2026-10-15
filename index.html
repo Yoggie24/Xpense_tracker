@@ -3,12 +3,17 @@
 
 <head>
     <meta charset="UTF-8">
+    <script src="assets/js/demo-mode.js"></script>
     <script src="assets/js/theme.js"></script>
     <meta name="viewport"
         content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>FinTracker PRO ? Personal Finance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
+        #init-loader.loader-dismissed {
+            display: none !important;
+        }
+
         @media print {
             body * {
                 visibility: hidden;
@@ -44,7 +49,8 @@
         }
     </style>
     <script>
-        tailwind.config = {
+        window.tailwind = window.tailwind || {};
+        window.tailwind.config = {
             darkMode: 'class',
             theme: {
                 extend: {
@@ -77,6 +83,7 @@
     <link rel="stylesheet" href="assets/css/workspace.css">
     <link rel="stylesheet" href="assets/css/system-config.css">
     <link rel="stylesheet" href="assets/css/minimal.css">
+    <link rel="stylesheet" href="assets/css/demo.css">
     <meta name="theme-color" content="#0b0f19">
 </head>
 

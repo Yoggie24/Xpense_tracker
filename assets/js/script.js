@@ -420,7 +420,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial setups
     setTimeout(() => {
-        document.getElementById('init-loader').classList.add('hidden');
+        document.getElementById('init-loader').classList.add('loader-dismissed');
     }, 500);
 });
 
@@ -995,6 +995,11 @@ async function syncToSpreadsheet() {
     const webhookUrl = getGASUrl();
     const status = document.getElementById('spreadsheet-status');
 
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) {
+        if (status) status.textContent = 'Sinkronisasi spreadsheet dinonaktifkan dalam mode demo.';
+        return;
+    }
+
     if (!webhookUrl) {
         if(status) status.innerHTML = "<span class='text-rose-400'>Webhook URL empty. Please set in settings.</span>";
         return;
@@ -1038,6 +1043,11 @@ async function syncToSpreadsheet() {
 async function loadFromSpreadsheet() {
     const webhookUrl = getGASUrl();
     const status = document.getElementById('spreadsheet-status');
+
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) {
+        if (status) status.textContent = 'Sinkronisasi spreadsheet dinonaktifkan dalam mode demo.';
+        return;
+    }
 
     if (!webhookUrl) {
         alert("Please configure your Google Apps Script Webhook URL first in Settings.");
@@ -1099,6 +1109,10 @@ function updateRatesDisplay() {
 
 async function fetchKurs() {
     const syncStatus = document.getElementById('syncStatus');
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) {
+        if (syncStatus) syncStatus.textContent = 'Kurs contoh; sinkronisasi live dinonaktifkan dalam mode demo.';
+        return false;
+    }
     if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Fetching USD...';
     try {
         const resp = await fetch('https://open.er-api.com/v6/latest/USD');
@@ -1121,6 +1135,10 @@ async function fetchKurs() {
 
 async function syncAllRates() {
     const syncStatus = document.getElementById('syncStatus');
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) {
+        if (syncStatus) syncStatus.textContent = 'Sinkronisasi kurs live dinonaktifkan dalam mode demo.';
+        return;
+    }
     if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Syncing Rates...';
 
     // Pegadaian returns IDR directly, so it does not depend on USD synchronization.

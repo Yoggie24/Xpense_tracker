@@ -82,6 +82,22 @@ Since you have already pushed your code to GitHub, you can host it for free in j
 **Click that link to open your live app!**
 You can now share this URL with your phone or friends.
 
+For this repository, the website is at <https://yoggie24.github.io/Xpense_tracker/>.
+After making local changes, run `push_to_github.bat` from this project to safely sync
+the `main` branch; GitHub Pages may take a few minutes to publish the update.
+
+The publish script syncs the website files, not browser data. Transactions stored on
+your PC are separate from the data stored by the website on your phone. Use the
+export/import steps below to move transactions between devices.
+
+### Share a Demo
+
+Share <https://yoggie24.github.io/Xpense_tracker/?demo=1> to let people try the app
+with sample transactions. Demo changes use a separate browser-storage namespace and
+do not overwrite the app's normal transactions. Spreadsheet sync and live rate
+connections are disabled in demo mode. Visitors can reset the demo from its banner;
+collect their feedback through your private chat.
+
 ## 🔄 How to Sync Data (Local to Online)
 
 Because this app runs in your browser, data is stored separately on each device/website.

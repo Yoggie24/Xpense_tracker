@@ -1,103 +1,81 @@
 @echo off
 chcp 65001 >nul 2>&1
-setlocal enabledelayedexpansion
+setlocal
+cd /d "%~dp0"
 
 echo ========================================
-echo   MONEY TRACKER - GITHUB AUTOMATOR
+echo   MONEY TRACKER - PUBLISH TO GITHUB
 echo ========================================
 echo.
 
-:: -----------------------------------------------
-:: Step 0: Ensure credential helper is configured
-:: -----------------------------------------------
-echo [0/5] Checking Git credentials setup...
-for /f "tokens=*" %%i in ('git config --global credential.helper 2^>nul') do set "CRED_HELPER=%%i"
-if not defined CRED_HELPER (
-    echo     No credential helper found. Setting up Git Credential Manager...
-    git config --global credential.helper manager
-    echo     Done - GCM will handle GitHub login.
+git rev-parse --show-toplevel >nul 2>&1
+if errorlevel 1 (
+    echo ERROR: This folder is not inside a Git repository.
+    goto failed
+)
+
+for /f "tokens=*" %%i in ('git branch --show-current') do set "BRANCH=%%i"
+if not "%BRANCH%"=="main" (
+    echo ERROR: Switch to the main branch before publishing.
+    echo Current branch: %BRANCH%
+    goto failed
+)
+
+echo [1/4] Staging local website and asset changes...
+git rm --cached --ignore-unmatch Yoggie.json credentials.json service_account.json scripts/service_account.json scripts/config.json config.json
+if errorlevel 1 (
+    echo ERROR: Could not remove ignored credential files from the Git index.
+    goto failed
+)
+git add --all
+if errorlevel 1 (
+    echo ERROR: Could not stage local changes.
+    goto failed
+)
+
+git diff --cached --quiet
+if errorlevel 2 (
+    echo ERROR: Could not inspect staged changes.
+    goto failed
+)
+if errorlevel 1 (
+    echo [2/4] Committing changes...
+    git commit -m "Sync website assets %date% %time%"
+    if errorlevel 1 (
+        echo ERROR: Commit failed.
+        goto failed
+    )
 ) else (
-    echo     Credential helper: !CRED_HELPER! - OK
-)
-echo.
-
-:: -----------------------------------------------
-:: Step 1: Remove sensitive cached files
-:: -----------------------------------------------
-echo [1/5] Removing sensitive cached files...
-git rm --cached Yoggie.json 2>nul
-git rm --cached credentials.json 2>nul
-git rm --cached service_account.json 2>nul
-git rm --cached scripts/service_account.json 2>nul
-git rm --cached scripts/config.json 2>nul
-git rm --cached config.json 2>nul
-echo     Done.
-echo.
-
-:: -----------------------------------------------
-:: Step 2: Stage all changes
-:: -----------------------------------------------
-echo [2/5] Staging all changes...
-git add .
-echo     Files staged.
-echo.
-
-:: -----------------------------------------------
-:: Step 3: Commit
-:: -----------------------------------------------
-echo [3/5] Committing changes...
-set "msg=Auto-update: %date% %time%"
-git commit -m "!msg!"
-if !errorlevel! neq 0 (
-    echo     Nothing new to commit - will push existing commits.
-)
-echo.
-
-:: -----------------------------------------------
-:: Step 4: Pull remote changes first (avoid rejected push)
-:: -----------------------------------------------
-echo [4/5] Pulling remote changes...
-git pull --rebase origin main 2>nul
-if !errorlevel! neq 0 (
-    echo     Pull failed or no remote changes. Continuing...
-)
-echo.
-
-:: -----------------------------------------------
-:: Step 5: Push
-:: -----------------------------------------------
-echo [5/5] Pushing to GitHub...
-git push origin main 2>&1
-set "PUSH_RESULT=!errorlevel!"
-
-if !PUSH_RESULT! neq 0 (
-    echo     Normal push failed. Trying force-with-lease...
-    git push --force-with-lease origin main 2>&1
-    set "PUSH_RESULT=!errorlevel!"
+    echo [2/4] No local changes to commit.
 )
 
-if !PUSH_RESULT! neq 0 (
-    echo     Force-with-lease failed. Trying force push...
-    git push --force origin main 2>&1
-    set "PUSH_RESULT=!errorlevel!"
+echo [3/4] Updating from GitHub...
+git pull --rebase origin main
+if errorlevel 1 (
+    echo ERROR: Pull/rebase failed. Resolve the issue, then run this script again.
+    goto failed
+)
+
+echo [4/4] Pushing local main to GitHub...
+git push origin main
+if errorlevel 1 (
+    echo ERROR: Push failed. Check your connection and GitHub permissions.
+    goto failed
 )
 
 echo.
-if !PUSH_RESULT! equ 0 (
-    echo ===================================
-    echo   SUCCESS! Code is live on GitHub.
-    echo ===================================
-) else (
-    echo ===================================
-    echo   PUSH FAILED!
-    echo ===================================
-    echo.
-    echo   Possible fixes:
-    echo     1. Check your internet connection
-    echo     2. Run: git config --global credential.helper manager
-    echo     3. Then try this script again - a browser login window should appear
-    echo     4. Make sure you have push access to the repo
-)
-
+echo ========================================
+echo   SUCCESS: Local main is synced to GitHub.
+echo   GitHub Pages: https://yoggie24.github.io/Xpense_tracker/
+echo   Allow a few minutes for Pages to publish.
+echo ========================================
 echo.
 pause
+exit /b 0
+
+:failed
+echo.
+echo Publishing stopped. No force push was attempted.
+echo.
+pause
+exit /b 1

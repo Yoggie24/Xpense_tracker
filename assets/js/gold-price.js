@@ -42,6 +42,10 @@ function applyPegadaianQuote(quote) {
     renderAll();
 }
 async function requestPegadaianPrice() {
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) {
+        setGoldStatus('Koneksi harga live dinonaktifkan dalam mode demo.');
+        return false;
+    }
     const key = (localStorage.getItem('zpi-api-key') || '').trim();
     if (!key) { setGoldStatus('Isi API key Zapi di System Config → Harga Emas Pegadaian.'); return false; }
     const controller = new AbortController();
@@ -66,6 +70,7 @@ async function requestPegadaianPrice() {
     } finally { clearTimeout(timeout); }
 }
 function fetchGoldPrice() {
+    if (typeof window !== 'undefined' && window.IS_DEMO_MODE) return Promise.resolve(false);
     if (!goldRequest) goldRequest = requestPegadaianPrice().finally(() => { goldRequest = null; });
     return goldRequest;
 }
