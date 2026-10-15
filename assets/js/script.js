@@ -9,17 +9,21 @@ const DEFAULT_CONFIG = {
 };
 
 let USD_KURS = parseFloat(localStorage.getItem('USD_KURS')) || 16000;
-let GOLD_PRICE = parseFloat(localStorage.getItem('GOLD_PRICE')) || 0;
+let GOLD_PRICE = initialGoldPrice();
 let masterData = [];
 let itemToDelete = null;
 let sortState = { k: 'date', o: 'desc' };
 let calendarDate = new Date();
 let isEditing = false;
 let editItem = null;
+let pockets = [];
+// null follows the current local month; an explicit selection is YYYY-MM.
+let selectedBudgetMonth = null;
 
 document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('entry-date').valueAsDate = new Date();
     loadSystemConfig();
+    pockets = readStoredArray('pockets');
     fetchData();
 
     // Tab Navigation Logic
@@ -27,10 +31,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const mobNavBtns = document.querySelectorAll('.mob-nav-btn');
 
     function updateTabUI(viewId) {
+        const pageTitles = { 'view-dashboard': 'Ringkasan', 'view-add': 'Catat transaksi', 'view-transactions': 'Riwayat transaksi', 'view-pockets': 'Kantong & tujuan', 'view-daily': 'Laporan harian', 'view-calendar': 'Kalender keuangan' };
+        document.getElementById('workspace-page-title').textContent = pageTitles[viewId] || 'FinTracker';
+        if (viewId === 'view-pockets') renderPockets();
         document.querySelectorAll('.tab-view').forEach(v => v.classList.add('hidden'));
         document.getElementById(viewId).classList.remove('hidden');
 
         deskNavBtns.forEach(btn => {
+            btn.setAttribute('aria-current', btn.dataset.target === viewId ? 'page' : 'false');
             if (btn.dataset.target === viewId) {
                 btn.classList.add('desk-nav-active');
                 btn.classList.remove('text-slate-400');
@@ -41,12 +49,13 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         mobNavBtns.forEach(btn => {
+            btn.setAttribute('aria-current', btn.dataset.target === viewId ? 'page' : 'false');
             if (btn.dataset.target === viewId) {
                 btn.classList.add('mob-nav-active');
-                btn.classList.remove('text-slate-500');
+                btn.classList.remove('text-slate-400');
             } else {
                 btn.classList.remove('mob-nav-active');
-                btn.classList.add('text-slate-500');
+                btn.classList.add('text-slate-400');
             }
         });
     }
@@ -57,13 +66,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.applyDatePreset = (type) => {
         const now = new Date();
+        selectedBudgetMonth = type === 'lastMonth' ? localMonthKey(new Date(now.getFullYear(), now.getMonth() - 1, 1)) : null;
         let start, end;
         if (type === 'thisMonth') { start = new Date(now.getFullYear(), now.getMonth(), 1); end = new Date(now.getFullYear(), now.getMonth() + 1, 0); }
         else if (type === 'lastMonth') { start = new Date(now.getFullYear(), now.getMonth() - 1, 1); end = new Date(now.getFullYear(), now.getMonth(), 0); }
         else if (type === 'last30') { end = new Date(); start = new Date(); start.setDate(now.getDate() - 30); }
         else if (type === 'thisYear') { start = new Date(now.getFullYear(), 0, 1); end = new Date(now.getFullYear(), 11, 31); }
         else { document.getElementById('filter-start').value = ''; document.getElementById('filter-end').value = ''; renderAll(); document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('preset-active')); return; }
-        document.getElementById('filter-start').value = start.toISOString().split('T')[0]; document.getElementById('filter-end').value = end.toISOString().split('T')[0]; renderAll();
+        document.getElementById('filter-start').value = localDateKey(start); document.getElementById('filter-end').value = localDateKey(end); renderAll();
         document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('preset-active')); if (event) event.target.classList.add('preset-active');
     };
 
@@ -80,29 +90,31 @@ document.addEventListener('DOMContentLoaded', () => {
         const val = document.querySelector('input[name="entry-type"]:checked').value;
         updateSegmentIndicator(val);
         updateUIForType(val);
+        loadSystemConfig(val);
     }));
 
     function updateUIForType(val) {
-        const tg = document.getElementById('transfer-target-group'), cg = document.getElementById('category-group'), ls = document.getElementById('lbl-source-acc'), btn = document.getElementById('submit-btn');
+        const tg = document.getElementById('transfer-target-group'), cg = document.getElementById('category-group'), budgetToggle = document.getElementById('budget-inclusion-group'), ls = document.getElementById('lbl-source-acc'), btn = document.getElementById('submit-btn');
+        budgetToggle.classList.toggle('hidden', val !== 'expense');
         if (val === 'transfer') {
-            tg.classList.remove('hidden'); cg.classList.add('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-600"></i> FROM / SOURCE';
+            tg.classList.remove('hidden'); cg.classList.add('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-300"></i> FROM / SOURCE';
             btn.innerHTML = `<span>${isEditing ? "Update Transfer" : "Process Transfer"}</span> <i class="fas fa-exchange-alt"></i>`;
             btn.className = "w-full bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(37,99,235,0.3)] hover:shadow-[0_8px_25px_rgba(37,99,235,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
         } else {
-            tg.classList.add('hidden'); cg.classList.remove('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-600"></i> FROM / ACCOUNT';
+            tg.classList.add('hidden'); cg.classList.remove('hidden'); ls.innerHTML = '<i class="fas fa-arrow-right mr-1 text-slate-300"></i> SUMBER DANA / AKUN BANK';
             btn.innerHTML = `<span>${isEditing ? "Update Transaction" : "Save Transaction"}</span> <i class="fas fa-check"></i>`;
             if (val === 'income') btn.className = isEditing ? "w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4" : "w-full bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(16,185,129,0.3)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
             else btn.className = isEditing ? "w-full bg-gradient-to-r from-orange-500 to-orange-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(249,115,22,0.3)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4" : "w-full bg-gradient-to-r from-rose-500 to-rose-600 text-white font-bold py-4 rounded-2xl shadow-[0_8px_20px_rgba(225,29,72,0.3)] hover:shadow-[0_8px_25px_rgba(225,29,72,0.4)] active:scale-[0.98] transition-all flex items-center justify-center gap-2 mt-4";
         }
     }
+    updateUIForType(document.querySelector('input[name="entry-type"]:checked').value);
     document.getElementById('entry-cat').addEventListener('change', e => document.getElementById('entry-cat-other').classList.toggle('hidden', e.target.value !== 'Other'));
 
     const updateCurrByAcc = (accElId, currElId) => {
         document.getElementById(accElId).addEventListener('change', e => {
             const val = e.target.value;
             const currSel = document.getElementById(currElId);
-            if (val.includes('USD') || val.includes('Vallas')) currSel.value = 'USD';
-            else currSel.value = 'IDR';
+            currSel.value = getAccountCurrency(val);
         });
     };
     updateCurrByAcc('entry-acc-source', 'entry-curr-source');
@@ -111,21 +123,22 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('add-entry-form').addEventListener('submit', e => {
         e.preventDefault();
         const btn = document.getElementById('submit-btn'); const origTxt = btn.innerHTML; btn.innerHTML = '<div class="loader w-5 h-5 border-2 border-white border-t-transparent"></div>'; btn.disabled = true;
+        try {
         const type = document.querySelector('input[name="entry-type"]:checked').value;
         const date = document.getElementById('entry-date').value;
         const desc = document.getElementById('entry-desc').value;
-        
+
         let txType = type === 'income' ? 'income' : 'expense';
-        let cat = document.getElementById('entry-cat').value; 
+        let cat = document.getElementById('entry-cat').value;
         if (cat === 'Other') {
             cat = document.getElementById('entry-cat-other').value.trim();
-            if (cat) {
-                let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
-                if (!customCats.includes(cat) && !DEFAULT_CONFIG.categories.includes(cat)) {
-                    customCats.push(cat);
-                    localStorage.setItem('customCategories', JSON.stringify(customCats));
-                    loadSystemConfig();
-                }
+            if (cat && type !== 'transfer') {
+                const key = type === 'income' ? 'incomeCategories' : 'expenseCategories';
+                const existing = getAppConfig()[key].find(c => c.toLowerCase() === cat.toLowerCase());
+                if (existing) cat = existing;
+                else changeConfigItem(key, cat);
+                loadSystemConfig(type);
+                document.getElementById('entry-cat').value = cat;
             }
         }
         if (type === 'transfer') cat = 'Transfer';
@@ -133,29 +146,38 @@ document.addEventListener('DOMContentLoaded', () => {
         const accSource = document.getElementById('entry-acc-source').value;
         const currSource = document.getElementById('entry-curr-source').value;
         const amtSource = Math.abs(parseFloat(document.getElementById('entry-amt-source').value));
+        const includeInBudget = type === 'expense' && document.getElementById('entry-include-budget').checked;
 
+        if (!Number.isFinite(amtSource) || amtSource <= 0 || !accSource || !cat) {
+            showToast('Nominal, sumber dana, atau kategori tidak valid', 'error');
+            btn.innerHTML = origTxt; btn.disabled = false; return;
+        }
         let txs = getTransactions();
 
         if (isEditing) {
             const idx = txs.findIndex(t => t.id == editItem.id);
             if (idx !== -1) {
+                // Apply new transaction data
                 txs[idx] = {
                     id: editItem.id,
                     date: date,
                     description: desc,
                     category: cat,
-                    paymentMethod: accSource,
+                    paymentMethod: accSource, accountId: accSource,
                     type: txType,
                     amount: amtSource,
-                    currency: currSource
+                    currency: currSource,
+                    includeInBudget: type === 'expense' ? includeInBudget : true,
+                    exchangeRate: currSource === 'USD' ? USD_KURS : 1
                 };
+
             }
         } else {
             if (type === 'transfer') {
                 const accTarget = document.getElementById('entry-acc-target').value;
                 const currTarget = document.getElementById('entry-curr-target').value;
                 const amtTargetInput = document.getElementById('entry-amt-target').value;
-                
+
                 let amtTarget = amtSource;
                 if (amtTargetInput) {
                     amtTarget = Math.abs(parseFloat(amtTargetInput));
@@ -167,13 +189,17 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
                 }
 
+                if (!accTarget || !Number.isFinite(amtTarget) || amtTarget <= 0) {
+                    showToast('Akun tujuan dan nominal transfer harus valid', 'error');
+                    return;
+                }
                 if (accSource === accTarget && currSource === currTarget) {
                     showToast("Source and Target are identical!", 'error');
                     btn.innerHTML = origTxt; btn.disabled = false; return;
                 }
 
                 // Create expense from source
-                txs.push({ id: Date.now().toString() + "-out", date, description: desc + " (Transfer Out)", category: cat, paymentMethod: accSource, type: 'expense', amount: amtSource, currency: currSource });
+                txs.push({ id: Date.now().toString() + "-out", date, description: desc + " (Transfer Out)", category: cat, paymentMethod: accSource, accountId: accSource, type: 'expense', amount: amtSource, currency: currSource });
                 // Create income to target
                 txs.push({ id: Date.now().toString() + "-in", date, description: desc + " (Transfer In)", category: cat, paymentMethod: accTarget, type: 'income', amount: amtTarget, currency: currTarget });
             } else {
@@ -182,10 +208,12 @@ document.addEventListener('DOMContentLoaded', () => {
                     date: date,
                     description: desc,
                     category: cat,
-                    paymentMethod: accSource,
+                    paymentMethod: accSource, accountId: accSource,
                     type: txType,
                     amount: amtSource,
-                    currency: currSource
+                    currency: currSource,
+                    includeInBudget: type === 'expense' ? includeInBudget : true,
+                    exchangeRate: currSource === 'USD' ? USD_KURS : 1
                 });
             }
         }
@@ -195,9 +223,15 @@ document.addEventListener('DOMContentLoaded', () => {
         showToast("Transaction saved", "success");
         resetForm();
         btn.innerHTML = origTxt; btn.disabled = false;
-        
+
         // Auto-sync after adding
         syncToSpreadsheet();
+        } catch (error) {
+            console.error('Transaction save failed', error);
+            showToast('Transaksi gagal diproses. Periksa penyimpanan browser.', 'error');
+        } finally {
+            btn.innerHTML = origTxt; btn.disabled = false;
+        }
     });
 
     document.getElementById('cancel-edit-btn').addEventListener('click', resetForm);
@@ -207,7 +241,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (btnDel) {
             itemToDelete = JSON.parse(btnDel.dataset.item);
-            document.getElementById('del-item-preview').innerHTML = `<div class="font-bold text-white text-base mb-1">${itemToDelete.desc}</div><div class="${itemToDelete.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-xl font-bold">${fmt(itemToDelete.amt, itemToDelete.curr)}</div><div class="text-[10px] uppercase font-bold tracking-wider text-slate-500 mt-3">${itemToDelete.date} • ${itemToDelete.acc}</div>`;
+            document.getElementById('del-item-preview').innerHTML = `<div class="font-bold text-white text-base mb-1">${itemToDelete.desc}</div><div class="${itemToDelete.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-xl font-bold">${fmt(itemToDelete.amt, itemToDelete.curr)}</div><div class="text-[10px] uppercase font-bold tracking-wider text-slate-400 mt-3">${itemToDelete.date} • ${escapePocketText(itemToDelete.acc)}</div>`;
             document.getElementById('delete-modal').classList.remove('hidden');
         }
 
@@ -221,6 +255,7 @@ document.addEventListener('DOMContentLoaded', () => {
             document.querySelector(`input[name="entry-type"][value="${item.type}"]`).checked = true;
             updateSegmentIndicator(item.type);
             updateUIForType(item.type);
+            loadSystemConfig(item.type);
 
             document.getElementById('entry-desc').value = item.desc;
             document.getElementById('entry-date').value = item.date;
@@ -232,12 +267,15 @@ document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('entry-curr-source').value = item.curr;
             document.getElementById('entry-acc-source').value = item.acc;
             document.getElementById('entry-amt-source').value = item.amt;
+            document.getElementById('entry-include-budget').checked = item.includeInBudget !== false;
+
         }
 
         // Quick Edit click handler
         const amtEdit = e.target.closest('.inline-amount-edit');
         if (amtEdit) {
             const item = JSON.parse(amtEdit.dataset.item);
+            if (item.subtype === 'saving_allocation') { showToast('Untuk mengubah alokasi, hapus lalu buat ulang melalui Menabung.', 'error'); return; }
             document.getElementById('qe-id').value = item.id;
             document.getElementById('qe-desc').textContent = item.desc + ' • ' + item.date;
             document.getElementById('qe-curr').textContent = item.curr;
@@ -251,11 +289,11 @@ document.addEventListener('DOMContentLoaded', () => {
             const acc = balEdit.dataset.acc;
             const curr = balEdit.dataset.curr;
             const val = balEdit.dataset.val;
-            
+
             document.getElementById('adj-acc').value = acc;
             document.getElementById('adj-curr').value = curr;
             document.getElementById('adj-old-amt').value = val;
-            
+
             document.getElementById('adj-desc').textContent = 'Account: ' + acc;
             document.getElementById('adj-curr-lbl').textContent = curr;
             document.getElementById('adj-amt').value = val;
@@ -267,7 +305,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('del-confirm').addEventListener('click', () => {
         let txs = getTransactions();
         txs = txs.filter(t => t.id != itemToDelete.id);
-        saveTransactions(txs);
+        try { saveTransactions(txs); } catch (error) { showToast(error.message, 'error'); return; }
         document.getElementById('delete-modal').classList.add('hidden');
         showToast("Deleted successfully", 'success');
         fetchData();
@@ -302,17 +340,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const curr = document.getElementById('adj-curr').value;
         const oldAmt = parseFloat(document.getElementById('adj-old-amt').value);
         const newAmt = parseFloat(document.getElementById('adj-amt').value);
-        
+
         if (isNaN(newAmt)) {
             showToast("Invalid amount", 'error');
             return;
         }
-        
+
         const diff = newAmt - oldAmt;
         if (diff !== 0) {
             let txs = getTransactions();
             const dateStr = document.getElementById('entry-date').value || new Date().toISOString().split('T')[0];
-            
+
             txs.push({
                 id: Date.now().toString(),
                 date: dateStr,
@@ -331,26 +369,30 @@ document.addEventListener('DOMContentLoaded', () => {
         document.getElementById('balance-adj-modal').classList.add('hidden');
     });
 
-    ['filter-start', 'filter-end', 'filter-cat', 'filter-acc', 'filter-search'].forEach(i => document.getElementById(i).addEventListener('input', renderAll));
+    ['filter-start', 'filter-end', 'filter-cat', 'filter-acc', 'filter-search'].forEach(i => document.getElementById(i).addEventListener('input', () => {
+        if (i === 'filter-start' || i === 'filter-end') selectBudgetMonthFromFilters();
+        renderAll();
+    }));
     const dashPeriodEl = document.getElementById('dashboard-period');
-    if (dashPeriodEl) dashPeriodEl.addEventListener('change', renderAll);
+    if (dashPeriodEl) dashPeriodEl.addEventListener('change', () => {
+        selectedBudgetMonth = null;
+        renderAll();
+    });
     document.getElementById('chart-currency-toggle').addEventListener('change', () => {
         const dashPeriod = document.getElementById('dashboard-period') ? document.getElementById('dashboard-period').value : 'month';
         updateChart(filterDataByPeriod(masterData, dashPeriod));
     });
     document.querySelectorAll('.sortable').forEach(s => s.addEventListener('click', e => { sortState.k = e.target.dataset.sort; sortState.o = sortState.o === 'asc' ? 'desc' : 'asc'; renderAll(); }));
-    
-    document.getElementById('settings-btn').addEventListener('click', () => {
-        document.getElementById('webhook-url-input').value = getGASUrl();
-        document.getElementById('settings-modal').classList.remove('hidden');
-    });
-    document.getElementById('settings-close').addEventListener('click', () => document.getElementById('settings-modal').classList.add('hidden'));
-    
+
+    document.getElementById('settings-btn').addEventListener('click', openSystemConfig);
+    document.getElementById('settings-close').addEventListener('click', closeSystemConfig);
+    document.getElementById('save-settings-btn').addEventListener('click', closeSystemConfig);
+
     // Add Google sheets listener
     document.getElementById('webhook-url-input').addEventListener('input', (e) => {
         localStorage.setItem('gas_webhook_url', e.target.value.trim());
     });
-    
+
     document.getElementById('push-data-btn').addEventListener('click', syncToSpreadsheet);
     document.getElementById('pull-data-btn').addEventListener('click', loadFromSpreadsheet);
 
@@ -383,34 +425,140 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function getAllCategories() {
-    const customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
-    const deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
-    let all = [...new Set([...DEFAULT_CONFIG.categories, ...customCats])];
-    return all.filter(c => !deletedCats.includes(c)).sort();
+    return [...new Set([...getAppConfig().expenseCategories, ...getAppConfig().incomeCategories])].sort();
 }
 
-function loadSystemConfig() {
-    const selAccS = document.getElementById('entry-acc-source');
-    const selAccT = document.getElementById('entry-acc-target');
-    const selCat = document.getElementById('entry-cat');
-    
-    const accs = DEFAULT_CONFIG.paymentMethods;
-    selAccS.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
-    selAccT.innerHTML = accs.map(w => `<option value="${w}">${w}</option>`).join('');
-    
-    const allCats = getAllCategories();
-    
-    selCat.innerHTML = allCats.map(c => `<option value="${c}">${c}</option>`).join('');
-    selCat.innerHTML += '<option value="Other">Other...</option>';
+function loadSystemConfig(type = document.querySelector('input[name="entry-type"]:checked')?.value || 'expense') {
+    const accounts = getAccountNames();
+    const updateSelect = (id, names, placeholder, historical = null) => {
+        const select = document.getElementById(id);
+        const previous = select.value;
+        const values = [...names];
+        if (historical && !values.includes(historical)) values.push(historical);
+        select.innerHTML = values.length ? values.map(name => `<option value="${escapePocketText(name)}">${escapePocketText(name)}${name === historical && !names.includes(name) ? ' (riwayat)' : ''}</option>`).join('') : `<option value="">${placeholder}</option>`;
+        select.value = values.includes(previous) ? previous : values[0] || '';
+        return previous !== select.value;
+    };
+    const sourceChanged = updateSelect('entry-acc-source', accounts, 'Tambahkan wallet di System Config', isEditing ? editItem?.acc : null);
+    const targetChanged = updateSelect('entry-acc-target', accounts, 'Tambahkan wallet di System Config');
+    if (sourceChanged) document.getElementById('entry-curr-source').value = getAccountCurrency(document.getElementById('entry-acc-source').value);
+    if (targetChanged) document.getElementById('entry-curr-target').value = getAccountCurrency(document.getElementById('entry-acc-target').value);
+    const historicalCategory = isEditing && editItem?.type === type ? editItem.cat : null;
+    updateSelect('entry-cat', [...getTransactionCategories(type), 'Other'], 'Tambahkan kategori', historicalCategory);
+    document.getElementById('entry-cat-other').classList.toggle('hidden', document.getElementById('entry-cat').value !== 'Other');
+}
+
+// Recover invalid legacy values without discarding the original stored payload.
+function readStoredArray(key) {
+    const raw = localStorage.getItem(key);
+    if (!raw) return [];
+    try {
+        const value = JSON.parse(raw);
+        if (Array.isArray(value)) return value.filter(item => item && typeof item === 'object');
+    } catch (error) { /* Preserve malformed data for recovery below. */ }
+    localStorage.setItem(key + '-invalid-backup', raw);
+    return [];
+}
+
+function normalizeTransaction(t) {
+    const account = String(t.accountId || t.paymentMethod || 'Cash').trim();
+    const accountId = getAccountNames().find(a => a.toLowerCase() === account.toLowerCase()) || account;
+    return {
+        ...t, accountId, paymentMethod: accountId,
+        pocketId: t.type === 'expense' && t.category !== 'Transfer' ? t.pocketId || null : null,
+        includeInBudget: t.includeInBudget !== false,
+        exchangeRate: Number(t.exchangeRate) > 0 ? Number(t.exchangeRate) : (t.currency === 'USD' ? USD_KURS : 1)
+    };
 }
 
 function getTransactions() {
-    const transactions = localStorage.getItem('transactions');
-    return transactions ? JSON.parse(transactions) : [];
+    return readStoredArray('transactions').map(normalizeTransaction);
+}
+
+function localMonthKey(date = new Date()) {
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function localDateKey(date) {
+    return `${localMonthKey(date)}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Read calendar dates without UTC conversion (which can shift month boundaries).
+function transactionMonthKey(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})(?:$|T)/.exec(String(value || ''));
+    if (!match) return null;
+    const year = Number(match[1]), month = Number(match[2]), day = Number(match[3]);
+    const date = new Date(year, month - 1, day);
+    return date.getFullYear() === year && date.getMonth() === month - 1 && date.getDate() === day
+        ? `${match[1]}-${match[2]}` : null;
+}
+
+function selectBudgetMonthFromFilters() {
+    const start = document.getElementById('filter-start')?.value;
+    const end = document.getElementById('filter-end')?.value;
+    selectedBudgetMonth = transactionMonthKey(start) || transactionMonthKey(end);
+}
+
+function getActiveBudgetMonth() {
+    return selectedBudgetMonth || localMonthKey();
+}
+
+// Monthly budgets use the whole selected month, independent of category/search filters.
+function calculatePocketUsage(pocket, transactions = getTransactions(), activeMonth = getActiveBudgetMonth()) {
+    const categories = new Set(pocket.categories || []);
+    return transactions.reduce((total, raw) => {
+        const t = normalizeTransaction(raw);
+        const amount = Number(t.amount);
+        if (t.type !== 'expense' || t.category === 'Transfer' || t.includeInBudget === false ||
+            !categories.has(t.category) || !Number.isFinite(amount) ||
+            (pocket.type !== 'saving' && transactionMonthKey(t.date) !== activeMonth)) return total;
+        return total + Math.abs(amount) * (t.currency === 'USD' ? t.exchangeRate : 1);
+    }, 0);
+}
+
+function derivePockets(transactions, activeMonth = getActiveBudgetMonth()) {
+    return pockets.map(original => {
+        const p = { ...original };
+        // Preserve the old allocation independently of the new category mapping.
+        const legacyUsage = transactions.reduce((sum, raw) => {
+            const t = normalizeTransaction(raw);
+            return t.type === 'expense' && t.category !== 'Transfer' && t.pocketId === p.id && Number.isFinite(Number(t.amount))
+                ? sum + Math.abs(Number(t.amount)) * (t.currency === 'USD' ? t.exchangeRate : 1) : sum;
+        }, 0);
+        if (!Number.isFinite(p.allocatedAmount)) {
+            p.allocatedAmount = Math.max(0, Number(p.balance) || 0) + legacyUsage;
+        }
+        p.categories = [...new Set((Array.isArray(p.categories) ? p.categories : []).filter(c => typeof c === 'string' && c.trim()))];
+        p.type = p.type || 'budget';
+        p.target = Math.max(0, Number(p.targetBudget ?? p.target) || 0);
+        p.targetBudget = p.target;
+        p.usedAmount = p.type === 'budget' ? calculatePocketUsage(p, transactions, activeMonth) : legacyUsage;
+        p.savingsTransferred = p.type === 'saving' ? savingsTransferNet(p.id, transactions) : 0;
+        p.balance = Math.max(0, p.allocatedAmount - p.usedAmount + p.savingsTransferred);
+        return p;
+    });
+}
+
+// Balances are a derived cache. A cache failure must never turn a committed
+// transfer into a failed operation that the user might inadvertently repeat.
+function cachePocketBalances() {
+    try { localStorage.setItem('pockets', JSON.stringify(pockets)); }
+    catch { /* Reload reconstructs balances from the authoritative ledger. */ }
+}
+function reconcilePockets(transactions = getTransactions(), activeMonth = getActiveBudgetMonth()) {
+    pockets = derivePockets(transactions, activeMonth);
+    cachePocketBalances();
 }
 
 function saveTransactions(transactions) {
-    localStorage.setItem('transactions', JSON.stringify(transactions));
+    const normalized = transactions.map(normalizeTransaction);
+    validateSavingsTransfers(normalized);
+    const nextPockets = derivePockets(normalized);
+    // One atomic localStorage write is the commit point. No state changes before it.
+    const payload = JSON.stringify(normalized);
+    if (localStorage.getItem('transactions') !== payload) localStorage.setItem('transactions', payload);
+    pockets = nextPockets;
+    cachePocketBalances();
 }
 
 function getGASUrl() {
@@ -421,16 +569,18 @@ function resetForm() {
     document.getElementById('add-entry-form').reset(); document.getElementById('entry-date').valueAsDate = new Date();
     isEditing = false; editItem = null; document.getElementById('form-title').innerHTML = '<div class="w-10 h-10 rounded-xl bg-theme-primary/20 flex items-center justify-center text-theme-primaryLight border border-theme-primary/30"><i class="fas fa-plus"></i></div> New Entry'; document.getElementById('cancel-edit-btn').classList.add('hidden');
     document.querySelector('input[name="entry-type"][value="expense"]').checked = true; document.querySelector('input[name="entry-type"][value="expense"]').dispatchEvent(new Event('change'));
+    document.getElementById('entry-include-budget').checked = true;
 }
 
 function fetchData() {
     let rawTxs = getTransactions();
+    saveTransactions(rawTxs);
     let changed = false;
     masterData = [];
     rawTxs.forEach(t => {
         let acc = t.paymentMethod || 'Cash';
         let normalizedAcc = acc.trim();
-        const match = DEFAULT_CONFIG.paymentMethods.find(m => m.toLowerCase() === normalizedAcc.toLowerCase());
+        const match = getAccountNames().find(m => m.toLowerCase() === normalizedAcc.toLowerCase());
         if (match && match !== acc) {
             t.paymentMethod = match;
             changed = true;
@@ -445,9 +595,13 @@ function fetchData() {
             date: t.date,
             desc: t.description,
             cat: t.category,
-            acc: t.paymentMethod,
+            acc: t.accountId,
+            accountId: t.accountId,
             curr: t.currency || 'IDR',
-            amt: parseFloat(t.amount)
+            amt: parseFloat(t.amount),
+            includeInBudget: t.includeInBudget !== false,
+            pocketId: t.pocketId,
+            subtype: t.subtype, savingsPocketId: t.savingsPocketId
         });
     });
 
@@ -456,8 +610,9 @@ function fetchData() {
     }
 
     const cats = [...new Set(masterData.map(d => d.cat))].sort(), accs = [...new Set(masterData.map(d => d.acc))].sort();
-    document.getElementById('filter-cat').innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option>${c}</option>`).join('');
-    document.getElementById('filter-acc').innerHTML = '<option value="all">All Accounts</option>' + accs.map(a => `<option>${a}</option>`).join('');
+    document.getElementById('filter-cat').innerHTML = '<option value="all">All Categories</option>' + cats.map(c => `<option>${escapePocketText(c)}</option>`).join('');
+    document.getElementById('filter-acc').innerHTML = '<option value="all">All Accounts</option>' + accs.map(a => `<option>${escapePocketText(a)}</option>`).join('');
+    renderPockets();
     renderAll();
 }
 
@@ -495,7 +650,7 @@ function filterDataByPeriod(data, period) {
         dashEndDate = new Date(dashStartDate);
         dashEndDate.setDate(dashStartDate.getDate() + 6);
     }
-    
+
     return data.filter(d => {
         const dObj = new Date(d.date);
         dObj.setHours(0,0,0,0);
@@ -504,10 +659,20 @@ function filterDataByPeriod(data, period) {
 }
 
 function renderAll() {
+    renderPockets();
+    renderDailyBurnRate();
     const bals = {}; let incIDR = 0, expIDR = 0, incUSD = 0, expUSD = 0;
     const dashPeriod = document.getElementById('dashboard-period') ? document.getElementById('dashboard-period').value : 'month';
     const dashFilteredData = filterDataByPeriod(masterData, dashPeriod);
-    
+    const periodLabel = { today: 'Hari ini', week: 'Minggu ini', month: 'Bulan ini', all: 'Semua waktu' }[dashPeriod] || 'Bulan ini';
+    const overviewLabel = document.getElementById('workspace-period-label');
+    if (overviewLabel) overviewLabel.textContent = `Arus masuk/keluar: ${periodLabel} ? Saldo & investasi: semua waktu`;
+    const recordCount = document.getElementById('workspace-record-count');
+    if (recordCount) recordCount.textContent = new Intl.NumberFormat('id-ID').format(masterData.length);
+    const pocketCount = document.getElementById('workspace-pocket-count');
+    if (pocketCount) pocketCount.textContent = pockets.length;
+
+
     const lbl = document.getElementById('top-cat-period-lbl');
     if (lbl) {
         if (dashPeriod === 'today') lbl.textContent = '(Today)';
@@ -515,13 +680,11 @@ function renderAll() {
         else if (dashPeriod === 'month') lbl.textContent = '(This Month)';
         else lbl.textContent = '(All Time)';
     }
-    
+
     // Initialize all payment methods to 0 balance
     const defaultKeys = new Set();
-    DEFAULT_CONFIG.paymentMethods.forEach(method => {
-        let curr = 'IDR';
-        if (method.includes('USD')) curr = 'USD';
-        if (method === 'Gold') curr = 'IDR';
+    getAccountNames().forEach(method => {
+        const curr = getAccountCurrency(method);
         const k = `${method}-${curr}`;
         bals[k] = { n: method, c: curr, v: 0 };
         defaultKeys.add(k);
@@ -549,13 +712,13 @@ function renderAll() {
 
     const wallets = [];
     const investments = [];
-    
+
     Object.values(bals).sort((a, b) => a.n.localeCompare(b.n)).forEach((b, idx) => {
         const k = `${b.n}-${b.c}`;
         // Hide 0 balance accounts that are not in default config
         if (b.v === 0 && !defaultKeys.has(k)) return;
-        
-        if (b.n === 'Gold' || b.n === 'Stocks') {
+
+        if (isInvestmentAccount(b.n)) {
             investments.push({...b, id: `inv-${idx}`});
         } else {
             wallets.push({...b, id: `bal-${idx}`});
@@ -567,16 +730,16 @@ function renderAll() {
         const isGold = b.n === 'Gold';
         let displayVal = isGold ? `${b.v.toLocaleString('en-US', {minimumFractionDigits:0, maximumFractionDigits:2})} g` : fmt(b.v, b.c);
         let idrEquivalent = 0;
-        
+
         if (isGold) idrEquivalent = b.v * GOLD_PRICE;
         else if (isUSD) idrEquivalent = b.v * USD_KURS;
         else idrEquivalent = b.v;
 
         return `
-        <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100 p-3 rounded-xl border border-slate-100 transition group">
-            <span class="text-xs text-slate-700 font-bold truncate max-w-[140px]" title="${b.n}">${b.n}</span>
+        <div class="flex justify-between items-center bg-slate-950/50 hover:bg-slate-800/50 p-3 rounded-xl border border-slate-800/80 transition group">
+            <span class="text-xs text-slate-200 font-bold truncate max-w-[140px]" title="${escapePocketText(b.n)}">${escapePocketText(b.n)}</span>
             <div class="text-right flex flex-col">
-                <span id="${b.id}" class="font-bold font-mono text-sm tracking-tighter ${b.v >= 0 ? (isGold || b.n === 'Stocks' ? 'text-yellow-600' : 'text-slate-800') : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-balance-edit" data-acc="${b.n}" data-curr="${b.c}" data-val="${b.v}">
+                <span id="${b.id}" class="font-bold font-mono text-sm tracking-tighter ${b.v >= 0 ? (isGold || b.n === 'Stocks' ? 'text-yellow-400' : 'text-slate-100') : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-balance-edit" data-acc="${escapePocketText(b.n)}" data-curr="${b.c}" data-val="${b.v}">
                     ${displayVal}
                 </span>
                 ${(isUSD || isGold) ? `<span class="text-[9px] text-slate-400 font-mono mt-0.5">${isGold ? 'Rp ' + fmt(idrEquivalent, 'IDR').replace('IDR','').trim() : 'Rate applied'}</span>` : ''}
@@ -589,26 +752,26 @@ function renderAll() {
     const invContainer = document.getElementById('investment-balances-container');
     if (invContainer) {
         invContainer.innerHTML = investments.map(renderCard).join('');
-        if (investments.length === 0) invContainer.innerHTML = '<div class="col-span-full text-center text-slate-500 py-4 text-xs italic">No investments yet</div>';
+        if (investments.length === 0) invContainer.innerHTML = '<div class="col-span-full text-center text-slate-400 py-4 text-xs italic">No investments yet</div>';
     }
 
     const totalIncReal = incIDR + (incUSD * USD_KURS);
     const totalExpReal = expIDR + (expUSD * USD_KURS);
     const netCashFlowIDR = totalIncReal - totalExpReal;
-    
+
     let totalAssetIDR = 0;
     let totalCashIDR = 0;
     let totalInvestIDR = 0;
-    
-    Object.values(bals).forEach(b => { 
+
+    Object.values(bals).forEach(b => {
         let valIDR = 0;
         if (b.n === 'Gold') valIDR = (b.v * GOLD_PRICE);
         else if (b.n === 'Stocks') valIDR = b.v; // Assuming Stocks are tracked in IDR directly
-        else if (b.c === 'IDR') valIDR = b.v; 
-        else if (b.c === 'USD') valIDR = (b.v * USD_KURS); 
-        
+        else if (b.c === 'IDR') valIDR = b.v;
+        else if (b.c === 'USD') valIDR = (b.v * USD_KURS);
+
         totalAssetIDR += valIDR;
-        if (b.n === 'Gold' || b.n === 'Stocks') {
+        if (isInvestmentAccount(b.n)) {
             totalInvestIDR += valIDR;
         } else {
             totalCashIDR += valIDR;
@@ -623,13 +786,23 @@ function renderAll() {
         netEl.className = `stat-value text-[13px] sm:text-base md:text-2xl font-bold truncate z-10 font-mono tracking-tighter ${netCashFlowIDR >= 0 ? 'text-slate-200' : 'text-rose-400'}`;
     }
 
+    const totalPocketsIDR = pockets.reduce((s, p) => s + Math.max(0, p.balance - (p.savingsTransferred || 0)), 0);
+    const unallocatedCashIDR = totalCashIDR - totalPocketsIDR;
+
     const cashEl = document.querySelector('#summary-cash .stat-value');
-    if (cashEl) cashEl.textContent = fmt(totalCashIDR, 'IDR');
+    if (cashEl) cashEl.textContent = fmt(unallocatedCashIDR, 'IDR');
+    const cashLbl = document.querySelector('#summary-cash .text-slate-400');
+    if (cashLbl) cashLbl.innerHTML = '<div class="w-5 h-5 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-400"><i class="fas fa-wallet text-[9px]"></i></div> SALDO BEBAS';
 
     const investEl = document.querySelector('#summary-invest .stat-value');
     if (investEl) investEl.textContent = fmt(totalInvestIDR, 'IDR');
 
     document.getElementById('rate-display').textContent = `1 USD = ${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}`;
+    const transferredSavings = savingsTransferNet(null);
+    document.getElementById('asset-wallet-total').textContent = fmtPocketIDR(totalCashIDR);
+    document.getElementById('asset-savings-total').textContent = fmtPocketIDR(transferredSavings);
+    document.getElementById('asset-investment-total').textContent = fmtPocketIDR(totalInvestIDR);
+    totalAssetIDR += transferredSavings;
     document.getElementById('wealth-display').textContent = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(totalAssetIDR);
 
     const s = document.getElementById('filter-search').value.toLowerCase(), start = document.getElementById('filter-start').value, end = document.getElementById('filter-end').value, fCat = document.getElementById('filter-cat').value, fAcc = document.getElementById('filter-acc').value;
@@ -642,39 +815,39 @@ function renderAll() {
     document.getElementById('mobile-trans-list').innerHTML = filtered.map(d => `
     <div class="formal-card p-4 flex justify-between items-center active:scale-[0.98] transition-transform">
         <div class="flex flex-col max-w-[60%] space-y-1.5">
-            <span class="text-sm font-bold text-slate-800 truncate">${d.desc}</span>
-            <div class="flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-500">
-                <span class="bg-slate-100 px-2 py-1 rounded-md border border-slate-200">${d.date.slice(5)}</span>
-                <span class="bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 uppercase tracking-wider">${d.acc}</span>
+            <span class="text-sm font-bold text-slate-100 truncate">${d.desc}</span>
+            <div class="flex flex-wrap items-center gap-2 text-[10px] font-medium text-slate-400">
+                <span class="bg-slate-800/50 px-2 py-1 rounded-md border border-slate-800/80">${d.date.slice(5)}</span>
+                <span class="bg-indigo-500/10 text-indigo-400 px-2 py-1 rounded-md border border-indigo-500/20 uppercase tracking-wider">${escapePocketText(d.acc)}</span>
             </div>
         </div>
         <div class="flex flex-col items-end gap-2">
-            <span class="font-bold font-mono text-sm ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</span>
+            <span class="font-bold font-mono text-sm ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${escapePocketText(JSON.stringify(d))}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</span>
             <div class="flex gap-2">
-                <button class="bg-slate-50 text-slate-400 hover:text-indigo-600 hover:bg-slate-100 border border-slate-200 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
-                <button class="bg-rose-50 text-rose-500 hover:bg-rose-100 border border-rose-100 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+                <button class="bg-slate-950/50 text-slate-400 hover:text-indigo-400 hover:bg-slate-800/50 border border-slate-800/80 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition edit-btn" data-item='${escapePocketText(JSON.stringify(d))}'><i class="fas fa-pen text-xs"></i></button>
+                <button class="bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg p-1.5 w-8 h-8 flex items-center justify-center transition del-btn" data-item='${escapePocketText(JSON.stringify(d))}'><i class="fas fa-trash text-xs"></i></button>
             </div>
         </div>
     </div>
 `).join('');
-    if (filtered.length === 0) document.getElementById('mobile-trans-list').innerHTML = '<div class="text-center text-slate-500 py-10 text-sm italic glass rounded-2xl">No transactions found</div>';
+    if (filtered.length === 0) document.getElementById('mobile-trans-list').innerHTML = '<div class="text-center text-slate-400 py-10 text-sm italic glass rounded-2xl">No transactions found</div>';
 
     document.getElementById('data-body').innerHTML = filtered.map(d => `
-    <tr class="hover:bg-slate-50 transition border-b border-slate-100 last:border-0 group">
-        <td class="px-6 py-4 text-sm text-slate-500 whitespace-nowrap font-mono">${d.date}</td>
-        <td class="px-6 py-4 text-sm text-slate-800 font-medium">${d.desc}</td>
-        <td class="px-6 py-4 text-sm"><span class="bg-indigo-50 text-indigo-600 border border-indigo-100 px-2.5 py-1 rounded-lg text-xs font-medium">${d.acc}</span></td>
-        <td class="px-6 py-4 text-sm text-slate-500"><span class="bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg text-xs">${d.cat}</span></td>
-        <td class="px-6 py-4 text-sm text-right font-mono font-bold ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</td>
+    <tr class="hover:bg-slate-950/50 transition border-b border-slate-800/80 last:border-0 group">
+        <td class="px-6 py-4 text-sm text-slate-400 whitespace-nowrap font-mono">${d.date}</td>
+        <td class="px-6 py-4 text-sm text-slate-100 font-medium">${d.desc}</td>
+        <td class="px-6 py-4 text-sm"><span class="bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-1 rounded-lg text-xs font-medium">${escapePocketText(d.acc)}</span></td>
+        <td class="px-6 py-4 text-sm text-slate-400"><span class="bg-slate-800/50 border border-slate-800/80 px-2.5 py-1 rounded-lg text-xs">${escapePocketText(d.cat)}</span></td>
+        <td class="px-6 py-4 text-sm text-right font-mono font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${escapePocketText(JSON.stringify(d))}'>${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}</td>
         <td class="px-4 py-4 text-center">
-            <div class="flex justify-center gap-2 opacity-0 group-hover:opacity-100 transition">
-                <button class="w-8 h-8 bg-slate-50 border border-slate-200 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition edit-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-pen text-xs"></i></button>
-                <button class="w-8 h-8 bg-rose-50 border border-rose-100 rounded-lg text-rose-500 hover:bg-rose-100 transition del-btn" data-item='${JSON.stringify(d)}'><i class="fas fa-trash text-xs"></i></button>
+            <div class="flex justify-center gap-2 opacity-100 transition">
+                <button aria-label="Edit transaksi" class="w-8 h-8 bg-slate-950/50 border border-slate-800/80 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800/50 transition edit-btn" data-item='${escapePocketText(JSON.stringify(d))}'><i class="fas fa-pen text-xs"></i></button>
+                <button aria-label="Hapus transaksi" class="w-8 h-8 bg-rose-500/10 border border-rose-500/20 rounded-lg text-rose-500 hover:bg-rose-500/20 transition del-btn" data-item='${escapePocketText(JSON.stringify(d))}'><i class="fas fa-trash text-xs"></i></button>
             </div>
         </td>
     </tr>
 `).join('');
-    if (filtered.length === 0) document.getElementById('data-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-500 text-sm italic">No data found</td></tr>';
+    if (filtered.length === 0) document.getElementById('data-body').innerHTML = '<tr><td colspan="6" class="text-center py-10 text-slate-400 text-sm italic">No data found</td></tr>';
 
     renderDaily(masterData); renderCalendar(masterData); updateChart(dashFilteredData); updateTrendChart(masterData); renderDashWidgets(dashFilteredData);
 }
@@ -695,7 +868,7 @@ function renderCalendar(data) {
             el.innerHTML += `<div class="flex gap-1.5 mt-auto pb-1 z-10">${items.some(x => x.type === 'income') ? '<div class="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_5px_rgba(16,185,129,0.8)]"></div>' : ''}${items.some(x => x.type === 'expense') ? '<div class="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_5px_rgba(225,29,72,0.8)]"></div>' : ''}</div>`;
             el.onclick = () => {
                 document.getElementById('cal-detail-title').textContent = new Date(dateStr).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
-                document.getElementById('cal-detail-content').innerHTML = items.map(x => `<div class="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5 mb-2 hover:bg-black/50 transition"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full ${x.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}"></div><div><div class="text-sm text-white font-bold">${x.desc}</div><div class="text-[10px] text-slate-500 mt-1 uppercase tracking-wider font-bold">${x.cat} • ${x.acc}</div></div></div><div class="${x.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-sm font-bold bg-white/5 px-2 py-1 rounded-lg cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(x).replace(/'/g, "&#39;")}'>${fmt(x.amt, x.curr)}</div></div>`).join('');
+                document.getElementById('cal-detail-content').innerHTML = items.map(x => `<div class="flex justify-between items-center p-4 bg-black/30 rounded-2xl border border-white/5 mb-2 hover:bg-black/50 transition"><div class="flex items-center gap-3"><div class="w-2 h-2 rounded-full ${x.type === 'income' ? 'bg-emerald-500' : 'bg-rose-500'}"></div><div><div class="text-sm text-white font-bold">${x.desc}</div><div class="text-[10px] text-slate-400 mt-1 uppercase tracking-wider font-bold">${escapePocketText(x.cat)} • ${escapePocketText(x.acc)}</div></div></div><div class="${x.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} font-mono text-sm font-bold bg-white/5 px-2 py-1 rounded-lg cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(x).replace(/'/g, "&#39;")}'>${fmt(x.amt, x.curr)}</div></div>`).join('');
                 document.getElementById('calendar-detail-modal').classList.remove('hidden');
             };
         }
@@ -708,11 +881,11 @@ document.getElementById('cal-close').addEventListener('click', () => document.ge
 
 let myChart;
 function updateChart(data) {
-    const curr = document.getElementById('chart-currency-toggle').value; const exps = data.filter(d => d.type === 'expense' && d.curr === curr && d.cat !== 'Transfer'); const totals = {}; exps.forEach(d => totals[d.cat] = (totals[d.cat] || 0) + d.amt);
+    const curr = document.getElementById('chart-currency-toggle').value; const exps = data.filter(d => d.type === 'expense' && d.curr === curr && d.cat !== 'Transfer'); const totals = Object.create(null); exps.forEach(d => totals[d.cat] = (totals[d.cat] || 0) + d.amt);
     const ctx = document.getElementById('expense-pie-chart').getContext('2d'); if (myChart) myChart.destroy();
-    const chartColors = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#F43F5E', '#8B5CF6', '#EC4899', '#14B8A6', '#6366F1'];
+    const chartColors = ['#6366a3', '#8187ad', '#98a2b3', '#64748b', '#475569', '#a5b4c8', '#71717a', '#52525b', '#cbd5e1'];
     myChart = new Chart(ctx, { type: 'doughnut', data: { labels: Object.keys(totals), datasets: [{ data: Object.values(totals), backgroundColor: chartColors, borderWidth: 2, borderColor: '#0B1325', hoverOffset: 6 }] }, options: { plugins: { legend: { display: false }, tooltip: { backgroundColor: 'rgba(11, 19, 37, 0.9)', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, cornerRadius: 12, displayColors: true } }, cutout: '75%', responsive: true, maintainAspectRatio: false } });
-    document.getElementById('expense-details').innerHTML = Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([k, v], i) => `<div class="flex justify-between items-center text-xs py-2 border-b border-white/5 last:border-0"><div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style="background-color: ${chartColors[i % chartColors.length]}"></div><span class="text-slate-300 font-medium">${k}</span></div><span class="font-mono text-white font-bold bg-white/5 px-2 py-0.5 rounded-md">${fmt(v, curr)}</span></div>`).join('');
+    document.getElementById('expense-details').innerHTML = Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([k, v], i) => `<div class="flex justify-between items-center text-xs py-2 border-b border-white/5 last:border-0"><div class="flex items-center gap-2"><div class="w-2.5 h-2.5 rounded-full" style="background-color: ${chartColors[i % chartColors.length]}"></div><span class="text-slate-300 font-medium">${escapePocketText(k)}</span></div><span class="font-mono text-white font-bold bg-white/5 px-2 py-0.5 rounded-md">${fmt(v, curr)}</span></div>`).join('');
 }
 
 let trendChart;
@@ -725,44 +898,44 @@ function updateTrendChart(data) {
     const sortedDates = Object.keys(dailyTotals).sort(); const values = sortedDates.map(date => dailyTotals[date]);
     const labels = sortedDates.map(d => { const dateObj = new Date(d); return dateObj.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }); });
 
-    trendChart = new Chart(ctx, { 
-        type: 'line', 
-        data: { 
-            labels: labels, 
-            datasets: [{ 
-                label: 'Total Expenses (IDR)', 
-                data: values, 
-                borderColor: '#4F46E5', 
-                backgroundColor: (context) => { 
-                    const chartCtx = context.chart.ctx; 
-                    const gradient = chartCtx.createLinearGradient(0, 0, 0, 300); 
-                    gradient.addColorStop(0, 'rgba(79, 70, 229, 0.5)'); 
-                    gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)'); 
-                    return gradient; 
-                }, 
-                borderWidth: 3, 
-                tension: 0.4, 
-                pointRadius: 0, 
-                pointHoverRadius: 6, 
-                pointBackgroundColor: '#4F46E5', 
-                pointBorderColor: '#fff', 
-                pointBorderWidth: 2, 
-                fill: true 
-            }] 
-        }, 
-        options: { 
-            responsive: true, 
-            maintainAspectRatio: false, 
-            interaction: { mode: 'index', intersect: false }, 
-            plugins: { 
-                legend: { display: false }, 
-                tooltip: { backgroundColor: 'rgba(11, 19, 37, 0.9)', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, cornerRadius: 12 } 
-            }, 
-            scales: { 
-                x: { grid: { display: false }, ticks: { color: '#64748b', font: { size: 10, family: "'Inter', sans-serif" } } }, 
-                y: { border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { color: '#64748b', font: { size: 10, family: "'JetBrains Mono', monospace" }, callback: function (value) { return value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' : (value / 1000).toFixed(0) + 'k'; } } } 
-            } 
-        } 
+    trendChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels,
+            datasets: [{
+                label: 'Total Expenses (IDR)',
+                data: values,
+                borderColor: '#8187ad',
+                backgroundColor: (context) => {
+                    const chartCtx = context.chart.ctx;
+                    const gradient = chartCtx.createLinearGradient(0, 0, 0, 300);
+                    gradient.addColorStop(0, 'rgba(99, 102, 163, 0.15)');
+                    gradient.addColorStop(1, 'rgba(79, 70, 229, 0.0)');
+                    return gradient;
+                },
+                borderWidth: 3,
+                tension: 0.4,
+                pointRadius: 0,
+                pointHoverRadius: 6,
+                pointBackgroundColor: '#4F46E5',
+                pointBorderColor: '#fff',
+                pointBorderWidth: 2,
+                fill: true
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                legend: { display: false },
+                tooltip: { backgroundColor: 'rgba(11, 19, 37, 0.9)', titleColor: '#fff', bodyColor: '#cbd5e1', borderColor: 'rgba(255,255,255,0.1)', borderWidth: 1, padding: 12, cornerRadius: 12 }
+            },
+            scales: {
+                x: { grid: { display: false }, ticks: { color: '#94a3b8', font: { size: 10, family: "'Inter', sans-serif" } } },
+                y: { border: { display: false }, grid: { color: 'rgba(255,255,255,0.05)', borderDash: [4, 4] }, ticks: { color: '#94a3b8', font: { size: 10, family: "'JetBrains Mono', monospace" }, callback: function (value) { return value >= 1000000 ? (value / 1000000).toFixed(1) + 'M' : (value / 1000).toFixed(0) + 'k'; } } }
+            }
+        }
     });
 }
 
@@ -770,27 +943,27 @@ function renderDashWidgets(data) {
     const sortedData = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
     const recent = sortedData.slice(0, 5);
     document.getElementById('dash-recent-list').innerHTML = recent.map(d => `
-    <div class="bg-slate-50 p-3 rounded-2xl flex justify-between items-center border border-slate-100 hover:border-slate-200 transition">
+    <div class="bg-slate-950/50 p-3 rounded-2xl flex justify-between items-center border border-slate-800/80 hover:border-slate-800/80 transition">
         <div class="flex items-center gap-3">
-            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${d.type === 'income' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-rose-500/10 text-rose-600'}">
+            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm ${d.type === 'income' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'}">
                 <i class="fas ${d.type === 'income' ? 'fa-arrow-down' : 'fa-arrow-up'}"></i>
             </div>
             <div>
-                <div class="text-sm font-bold text-slate-800 truncate max-w-[150px] sm:max-w-[200px]">${d.desc}</div>
-                <div class="text-[10px] text-slate-500 uppercase tracking-wider font-bold mt-0.5">${d.date} • ${d.cat}</div>
+                <div class="text-sm font-bold text-slate-100 truncate max-w-[150px] sm:max-w-[200px]">${d.desc}</div>
+                <div class="text-[10px] text-slate-400 uppercase tracking-wider font-bold mt-0.5">${d.date} • ${escapePocketText(d.cat)}</div>
             </div>
         </div>
-        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-600' : 'text-rose-600'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${JSON.stringify(d).replace(/'/g, "&#39;")}'>
+        <div class="font-mono text-sm font-bold ${d.type === 'income' ? 'text-emerald-400' : 'text-rose-400'} cursor-pointer hover:opacity-70 transition inline-amount-edit" data-item='${escapePocketText(JSON.stringify(d))}'>
             ${d.type === 'income' ? '+' : '-'} ${fmt(d.amt, d.curr)}
         </div>
     </div>
 `).join('');
-    if (recent.length === 0) document.getElementById('dash-recent-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No activity yet</div>';
+    if (recent.length === 0) document.getElementById('dash-recent-list').innerHTML = '<div class="text-center text-slate-400 py-4 text-xs italic">No activity yet</div>';
 
     const periodExps = data.filter(d => d.type === 'expense' && d.cat !== 'Transfer');
 
     let totalPeriod = 0;
-    const catTotals = {};
+    const catTotals = Object.create(null);
     periodExps.forEach(d => {
         const amtIDR = d.curr === 'USD' ? d.amt * USD_KURS : d.amt;
         catTotals[d.cat] = (catTotals[d.cat] || 0) + amtIDR;
@@ -798,22 +971,22 @@ function renderDashWidgets(data) {
     });
 
     const topCats = Object.entries(catTotals).sort((a, b) => b[1] - a[1]);
-    const chartColors = ['#4F46E5', '#0EA5E9', '#10B981', '#F59E0B', '#F43F5E'];
+    const chartColors = ['#6366a3', '#8187ad', '#98a2b3', '#64748b', '#475569'];
 
     document.getElementById('dash-top-cat-list').innerHTML = topCats.map((c, i) => {
         const percentage = totalPeriod > 0 ? (c[1] / totalPeriod) * 100 : 0;
         return `
     <div class="space-y-1.5">
         <div class="flex justify-between items-end">
-            <span class="text-xs font-bold text-slate-700">${c[0]} <span class="text-[10px] text-slate-500 ml-1">(${percentage.toFixed(1)}%)</span></span>
-            <span class="font-mono text-xs text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">${fmt(c[1], 'IDR')}</span>
+            <span class="text-xs font-bold text-slate-200">${escapePocketText(c[0])} <span class="text-[10px] text-slate-400 ml-1">(${percentage.toFixed(1)}%)</span></span>
+            <span class="font-mono text-xs text-slate-100 bg-slate-800/50 px-2 py-0.5 rounded-md border border-slate-800/80">${fmt(c[1], 'IDR')}</span>
         </div>
-        <div class="w-full h-2 bg-slate-200 rounded-full overflow-hidden border border-slate-300">
+        <div class="w-full h-2 bg-slate-700/50 rounded-full overflow-hidden border border-slate-300">
             <div class="h-full rounded-full" style="width: ${percentage}%; background-color: ${chartColors[i % chartColors.length]}; box-shadow: 0 0 10px ${chartColors[i % chartColors.length]}80;"></div>
         </div>
     </div>`;
     }).join('');
-    if (topCats.length === 0) document.getElementById('dash-top-cat-list').innerHTML = '<div class="text-center text-slate-500 py-4 text-xs italic">No expenses in this period</div>';
+    if (topCats.length === 0) document.getElementById('dash-top-cat-list').innerHTML = '<div class="text-center text-slate-400 py-4 text-xs italic">No expenses in this period</div>';
 }
 
 // ---------------- Google Sheets Sync Logic ----------------
@@ -833,7 +1006,7 @@ async function syncToSpreadsheet() {
     }
 
     const transactions = getTransactions();
-    
+
     try {
         const payload = JSON.stringify({
             transactions: transactions,
@@ -887,7 +1060,7 @@ async function loadFromSpreadsheet() {
             const newTxs = result.transactions || [];
             saveTransactions(newTxs);
             fetchData();
-            
+
             if (status) {
                 status.textContent = `✅ Loaded ${newTxs.length} transactions from Spreadsheet`;
                 status.style.color = '#10b981';
@@ -911,14 +1084,14 @@ async function loadFromSpreadsheet() {
 function updateRatesDisplay() {
     const display = document.getElementById('currentRatesDisplay');
     if (!display) return;
-    
+
     display.innerHTML = `
         <div class="flex flex-col items-end">
-            <span class="text-[10px] text-slate-500 font-bold uppercase mb-0.5">💵 USD Kurs</span>
+            <span class="text-[10px] text-slate-400 font-bold uppercase mb-0.5">💵 USD Kurs</span>
             <span class="text-emerald-400 font-bold">${fmt(USD_KURS, 'IDR').replace('IDR', '').trim()}</span>
         </div>
         <div class="flex flex-col items-end ml-2">
-            <span class="text-[10px] text-slate-500 font-bold uppercase mb-0.5">🥇 Gold / g</span>
+            <span class="text-[10px] text-slate-400 font-bold uppercase mb-0.5">🥇 ${escapePocketText(goldPriceCaption())}</span>
             <span class="text-yellow-400 font-bold">${fmt(GOLD_PRICE, 'IDR').replace('IDR', '').trim()}</span>
         </div>
     `;
@@ -946,184 +1119,245 @@ async function fetchKurs() {
     return false;
 }
 
-async function fetchGoldPrice() {
-    const syncStatus = document.getElementById('syncStatus');
-    if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Fetching Gold...';
-
-    try {
-        const resp = await fetch('https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/usd.json');
-        if (resp.ok) {
-            const data = await resp.json();
-            if (data && data.usd && data.usd.xau) {
-                const xauUsd = 1 / data.usd.xau; // Price of 1 Troy Ounce in USD
-                GOLD_PRICE = Math.round((xauUsd * USD_KURS) / 31.1035);
-                localStorage.setItem('GOLD_PRICE', GOLD_PRICE);
-                updateRatesDisplay();
-                renderAll();
-                if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400"><i class="fas fa-check"></i> Gold updated</span>`;
-                showToast("Gold price updated!", "success");
-                return true;
-            }
-        }
-    } catch (e) {
-        console.error("Gold fetch failed:", e);
-    }
-    
-    if (syncStatus) syncStatus.innerHTML = `<span class="text-rose-400">❌ Failed Gold</span>`;
-    return false;
-}
-
 async function syncAllRates() {
     const syncStatus = document.getElementById('syncStatus');
     if (syncStatus) syncStatus.innerHTML = '<div class="loader w-3 h-3 border-2 border-slate-500 border-t-white mx-auto inline-block align-middle mr-2"></div> Syncing Rates...';
-    
-    const kursOk = await fetchKurs();
-    if (kursOk) {
-        await fetchGoldPrice();
-        if (syncStatus) syncStatus.innerHTML = `<span class="text-emerald-400">✅ All rates updated (${new Date().toLocaleTimeString()})</span>`;
-    }
+
+    // Pegadaian returns IDR directly, so it does not depend on USD synchronization.
+    const [kursOk, goldOk] = await Promise.all([fetchKurs(), fetchGoldPrice()]);
+    if (syncStatus) syncStatus.textContent = kursOk && goldOk
+        ? `Kurs dan harga Pegadaian diperbarui (${new Date().toLocaleTimeString()})`
+        : `Sinkronisasi: USD ${kursOk ? 'berhasil' : 'gagal'}, Pegadaian ${goldOk ? 'berhasil' : 'belum berhasil; periksa System Config'}. Harga terakhir tetap tersedia.`;
+
 }
 // -------------------------------------------------------------
 // CATEGORY MANAGEMENT
 // -------------------------------------------------------------
 
-function openCategoryManager() {
-    document.getElementById('category-modal').classList.remove('hidden');
-    renderCategoryManager();
-}
+// The transaction form's Manage shortcut opens the same source of truth.
+function openCategoryManager() { openSystemConfig(); }
 
-function closeCategoryManager() {
-    document.getElementById('category-modal').classList.add('hidden');
-    loadSystemConfig();
-}
+// -------------------------------------------------------------
+// POCKETS (KANTONG) MANAGEMENT
+// -------------------------------------------------------------
+function renderPockets() {
+    const activeMonth = getActiveBudgetMonth();
+    reconcilePockets(getTransactions(), activeMonth);
+    renderBudgetPlan();
+    const [year, month] = activeMonth.split('-').map(Number);
+    const monthLabel = new Intl.DateTimeFormat('id-ID', { month: 'long', year: 'numeric' }).format(new Date(year, month - 1, 1));
+    const usageLabel = activeMonth === localMonthKey() ? 'Terpakai Bulan Ini' : 'Terpakai Bulan Terpilih';
+    const sGrid = document.getElementById('saving-pockets-grid');
+    const bGrid = document.getElementById('budget-pockets-grid');
+    if(!sGrid || !bGrid) return;
 
-function renderCategoryManager() {
-    const container = document.getElementById('category-list-container');
-    const allCats = getAllCategories();
-    
-    if (allCats.length === 0) {
-        container.innerHTML = '<div class="text-center text-slate-400 text-sm py-4">Tidak ada kategori.</div>';
-        return;
-    }
-    
-    container.innerHTML = allCats.map(cat => `
-        <div class="flex justify-between items-center bg-slate-50 border border-slate-100 p-3 rounded-xl hover:border-slate-200 transition group">
-            <div class="flex-1 font-semibold text-sm text-slate-700" id="cat-text-${btoa(cat).replace(/=/g, '')}">${cat}</div>
-            <div class="hidden flex-1" id="cat-edit-${btoa(cat).replace(/=/g, '')}">
-                <input type="text" class="input-formal rounded-lg px-2 py-1 text-sm w-full border border-slate-200" value="${cat}" id="cat-input-${btoa(cat).replace(/=/g, '')}">
+    let sHTML = '', bHTML = '';
+    const budgetExpenseByCategory = calculateMonthlyBudgetExpenseByCategory(getTransactions(), activeMonth);
+
+    pockets.forEach(p => {
+        const progress = p.type === 'budget' ? p.usedAmount : p.balance;
+        const pct = p.target > 0 ? (progress / p.target) * 100 : 0;
+
+        const state = p.type === 'saving' ? 'saving' : (pct > 100 ? 'over' : pct >= 80 ? 'warning' : 'safe');
+        const status = { saving: pct >= 100 ? 'Target tercapai' : 'Sedang terkumpul', over: 'Overbudget', warning: 'Mendekati limit', safe: 'Budget aman' }[state];
+        const card = `
+        <div class="formal-card pocket-card p-5 transition relative group" data-state="${state}">
+            <div class="pocket-actions absolute top-3 right-3 flex gap-2 opacity-100 transition">
+                <button aria-label="Edit kantong" onclick="editPocket('${p.id}')" class="w-6 h-6 bg-slate-950/50 text-slate-400 hover:text-indigo-400 rounded-md flex items-center justify-center border border-slate-800/80"><i class="fas fa-pen text-[10px]"></i></button>
+                <button aria-label="Hapus kantong" onclick="deletePocket('${p.id}')" class="w-6 h-6 bg-rose-500/10 text-rose-500 hover:bg-rose-500/20 rounded-md flex items-center justify-center border border-rose-500/20"><i class="fas fa-trash text-[10px]"></i></button>
             </div>
-            <div class="flex gap-2 ml-4">
-                <button type="button" onclick="editCategoryMode('${btoa(cat).replace(/=/g, '')}')" class="text-slate-400 hover:text-indigo-600 transition" id="cat-edit-btn-${btoa(cat).replace(/=/g, '')}"><i class="fas fa-edit"></i></button>
-                <button type="button" onclick="saveCategoryEdit('${btoa(cat).replace(/=/g, '')}', '${cat.replace(/'/g, "\\'")}')" class="hidden text-emerald-500 hover:text-emerald-600 transition" id="cat-save-btn-${btoa(cat).replace(/=/g, '')}"><i class="fas fa-check"></i></button>
-                <button type="button" onclick="deleteCategory('${cat.replace(/'/g, "\\'")}')" class="text-slate-400 hover:text-rose-600 transition"><i class="fas fa-trash"></i></button>
+            <div class="flex items-center gap-3 mb-3 pr-20">
+                <div class="w-10 h-10 rounded-xl bg-slate-950/50 border border-slate-800/80 flex items-center justify-center text-xl shadow-sm">
+                    ${p.icon || '💰'}
+                </div>
+                <div>
+                    <h4 class="text-sm font-bold text-slate-100">${escapePocketText(p.name)}</h4>
+                    ${p.type === 'budget' ? `<p class="text-[10px] text-slate-400">Budget Bulanan ? ${monthLabel}</p>` : ''}
+                    <p class="text-[10px] text-slate-400">${p.type === 'budget' ? `${usageLabel}: ${fmtPocketIDR(p.usedAmount)} / ${fmtPocketIDR(p.target)}` : `Terkumpul ${fmtPocketIDR(p.balance)} / Target ${fmtPocketIDR(p.target)}`}</p>
+                </div>
             </div>
-        </div>
-    `).join('');
-}
 
-function editCategoryMode(b64id) {
-    document.getElementById(`cat-text-${b64id}`).classList.add('hidden');
-    document.getElementById(`cat-edit-${b64id}`).classList.remove('hidden');
-    document.getElementById(`cat-edit-btn-${b64id}`).classList.add('hidden');
-    document.getElementById(`cat-save-btn-${b64id}`).classList.remove('hidden');
-    document.getElementById(`cat-input-${b64id}`).focus();
-}
+            ${p.type === 'budget' ? `<div class="pocket-category-tags">${p.categories.length ? p.categories.map(c => `<span>${escapePocketText(c)}</span>`).join('') : '<span>Belum ada kategori terhubung. Edit kantong untuk memilih.</span>'}</div><div class="pocket-expense-breakdown">${p.categories.length ? p.categories.map(c => `<div><span>${escapePocketText(c)}</span><strong>${fmtPocketIDR(budgetExpenseByCategory[c] || 0)}</strong></div>`).join('') : ''}</div>` : ''}
+            ${p.type === 'saving' ? `<p class="savings-source-note">Dana dari wallet: ${fmtPocketIDR(p.savingsTransferred)}${p.balance - p.savingsTransferred > 0 ? `<br>Saldo lama (legacy): ${fmtPocketIDR(p.balance - p.savingsTransferred)}<br>Belum terhubung ke sumber dana; tidak dapat ditarik otomatis.` : ''}</p>` : ''}
+            <p class="pocket-allocation">${fmtPocketIDR(p.target)} &bull; <strong>${formatAllocationPercent(allocationPercentage(p.target))} dari Total Budget</strong></p>
+            <div class="pocket-status"><span class="status-dot" aria-hidden="true"></span>${status}</div>
+            <div class="pocket-progress-bar mb-2" role="progressbar" aria-label="${escapePocketText(p.name)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.min(100, Math.max(0, pct)).toFixed(0)}" aria-valuetext="${pct.toFixed(0)}% ${status}">
+                <div class="pocket-progress-fill ${p.type === 'saving' ? 'bg-emerald-500' : 'bg-orange-500'}" style="width: ${Math.min(100, Math.max(0, pct))}%"></div>
+            </div>
 
-function saveCategoryEdit(b64id, oldName) {
-    const newName = document.getElementById(`cat-input-${b64id}`).value.trim();
-    if (!newName || newName === oldName) {
-        renderCategoryManager();
-        return;
-    }
-    renameCategory(oldName, newName);
-}
+            <div class="flex justify-between items-center text-[10px] font-bold mt-3">
+                <span class="${p.type === 'saving' ? 'text-emerald-400' : 'text-orange-400'}">${pct.toFixed(0)}% ${p.type === 'budget' ? 'Terpakai' : 'Terkumpul'}</span>
+                ${p.type === 'saving' ? `<button onclick="openAllocateModal('${p.id}')" class="bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 px-3 py-1.5 rounded-lg transition border border-indigo-500/20 shadow-sm">Menabung <i class="fas fa-plus text-[8px] ml-1"></i></button>` : ''}
+            </div>
+        </div>`;
 
-function renameCategory(oldName, newName) {
-    let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
-    let deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
-    
-    const allCats = getAllCategories();
-    if (allCats.includes(newName) && newName !== oldName) {
-        alert("Kategori dengan nama tersebut sudah ada!");
-        return;
-    }
-
-    if (DEFAULT_CONFIG.categories.includes(oldName)) {
-        if (!deletedCats.includes(oldName)) {
-            deletedCats.push(oldName);
-            localStorage.setItem('deletedCategories', JSON.stringify(deletedCats));
-        }
-        if (!customCats.includes(newName)) customCats.push(newName);
-    } else {
-        const idx = customCats.indexOf(oldName);
-        if (idx > -1) {
-            customCats[idx] = newName;
-        } else {
-            customCats.push(newName);
-        }
-    }
-    localStorage.setItem('customCategories', JSON.stringify(customCats));
-
-    let txs = getTransactions();
-    let updated = false;
-    txs.forEach(t => {
-        if (t.category === oldName) {
-            t.category = newName;
-            updated = true;
-        }
+        if (p.type === 'saving') sHTML += card;
+        else bHTML += card;
     });
-    
-    if (updated) {
-        saveTransactions(txs);
-        fetchData();
-        if (document.getElementById('view-dashboard') && !document.getElementById('view-dashboard').classList.contains('hidden')) {
-            renderAll();
+
+    sGrid.innerHTML = sHTML || '<div class="col-span-full text-center text-slate-400 text-xs py-4 border border-dashed border-slate-800/80 rounded-xl">Belum ada target tabungan.</div>';
+    bGrid.innerHTML = bHTML || '<div class="col-span-full text-center text-slate-400 text-xs py-4 border border-dashed border-slate-800/80 rounded-xl">Belum ada budget bulanan.</div>';
+}
+
+function fmtPocketIDR(amount) {
+    return 'Rp ' + new Intl.NumberFormat('id-ID', { maximumFractionDigits: 2 }).format(amount);
+}
+
+function escapePocketText(value) {
+    return String(value ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function pocketCategoryConflict(categories, id) {
+    return pockets.find(p => p.id !== id && p.type === 'budget' &&
+        categories.some(c => (p.categories || []).includes(c)));
+}
+
+function renderPocketCategories(selected = []) {
+    const id = document.getElementById('pocket-id').value;
+    const categories = [...new Set([...getAppConfig().expenseCategories, ...getTransactions().filter(t => t.type === 'expense').map(t => t.category), ...selected])]
+        .filter(c => typeof c === 'string' && c && c !== 'Transfer').sort();
+    document.getElementById('pocket-categories').innerHTML = categories.map(c => {
+        const owner = pocketCategoryConflict([c], id);
+        return `<label class="pocket-category-option"><input type="checkbox" value="${escapePocketText(c)}" ${selected.includes(c) ? 'checked' : ''} ${owner ? 'disabled' : ''}><span>${escapePocketText(c)}${owner ? `<small>Dipakai: ${escapePocketText(owner.name)}</small>` : ''}</span></label>`;
+    }).join('');
+    togglePocketCategories();
+}
+
+function togglePocketCategories() {
+    document.getElementById('pocket-categories-group').classList.toggle('hidden',
+        document.querySelector('input[name="pocket-type"]:checked').value !== 'budget');
+}
+
+window.editPocket = (id) => {
+    const p = pockets.find(x => x.id === id);
+    if(!p) return;
+    document.getElementById('pocket-id').value = p.id;
+    document.getElementById('pocket-name').value = p.name;
+    document.getElementById('pocket-target').value = p.target;
+    document.getElementById('pocket-icon').value = p.icon || '';
+    document.querySelector(`input[name="pocket-type"][value="${p.type}"]`).checked = true;
+    renderPocketCategories(p.categories);
+    document.getElementById('pocket-modal-title').innerText = 'Edit Kantong';
+    document.getElementById('pocket-modal').classList.remove('hidden');
+};
+
+window.deletePocket = (id) => {
+    if (savingsTransferNet(id) > .001) { showToast('Tarik saldo tabungan ke wallet sebelum menghapus kantong.', 'error'); return; }
+    if(confirm('Hapus kantong ini? Riwayat transaksi tetap disimpan.')) {
+        pockets = pockets.filter(x => x.id !== id);
+        localStorage.setItem('pockets', JSON.stringify(pockets));
+        renderPockets();
+        renderAll();
+    }
+};
+
+window.openAllocateModal = (id) => {
+    if (!pockets.some(p => p.id === id && p.type === 'saving')) return;
+    savingsOperationId = newSavingsOperationId();
+    document.getElementById('pocket-alloc-save').disabled = false;
+    document.getElementById('pocket-alloc-id').value = id;
+    document.getElementById('pocket-alloc-amt').value = '';
+    document.getElementById('pocket-alloc-type').value = 'add';
+    document.getElementById('btn-alloc-add').className = 'flex-1 py-1.5 text-xs font-bold rounded-md bg-slate-900/60 text-emerald-400 shadow-sm';
+    document.getElementById('btn-alloc-sub').className = 'flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200';
+    populateSavingsWallets();
+    updateSavingsPreview();
+    document.getElementById('pocket-allocate-modal').classList.remove('hidden');
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    const btnAddPocket = document.getElementById('add-pocket-btn');
+    if(btnAddPocket) btnAddPocket.addEventListener('click', () => {
+        document.getElementById('pocket-id').value = '';
+        document.getElementById('pocket-name').value = '';
+        document.getElementById('pocket-target').value = '';
+        document.getElementById('pocket-icon').value = '';
+        document.querySelector('input[name="pocket-type"][value="budget"]').checked = true;
+        renderPocketCategories();
+        document.getElementById('pocket-modal-title').innerText = 'Tambah Kantong';
+        document.getElementById('pocket-modal').classList.remove('hidden');
+    });
+
+    document.querySelectorAll('input[name="pocket-type"]').forEach(r => r.addEventListener('change', togglePocketCategories));
+    const pocketCancel = document.getElementById('pocket-cancel');
+    if(pocketCancel) pocketCancel.addEventListener('click', () => document.getElementById('pocket-modal').classList.add('hidden'));
+
+    const pocketSave = document.getElementById('pocket-save');
+    if(pocketSave) pocketSave.addEventListener('click', () => {
+        const id = document.getElementById('pocket-id').value;
+        const name = document.getElementById('pocket-name').value.trim();
+        const type = document.querySelector('input[name="pocket-type"]:checked').value;
+        const target = parseFloat(document.getElementById('pocket-target').value) || 0;
+        const icon = document.getElementById('pocket-icon').value.trim();
+
+        if(!name) { showToast('Nama kantong harus diisi', 'error'); return; }
+        if (!Number.isFinite(target) || target <= 0) { showToast('Target budget harus lebih dari nol', 'error'); return; }
+        const categories = type === 'budget' ? Array.from(document.querySelectorAll('#pocket-categories input:checked'), el => el.value) : [];
+        if (id && type !== 'saving' && savingsTransferNet(id) > .001) { showToast('Tarik dana tabungan sebelum mengubah tipe kantong.', 'error'); return; }
+        const conflict = pocketCategoryConflict(categories, id);
+        if (conflict) { showToast('Kategori sudah dipakai di kantong ' + conflict.name, 'error'); return; }
+
+        if(id) {
+            const idx = pockets.findIndex(p => p.id === id);
+            if(idx !== -1) {
+                pockets[idx].name = name;
+                pockets[idx].type = type;
+                pockets[idx].target = target;
+                pockets[idx].targetBudget = target;
+                pockets[idx].categories = categories;
+                pockets[idx].icon = icon;
+            }
+        } else {
+            pockets.push({
+                id: 'pkt-' + Date.now(),
+                name, type, target, targetBudget: target, categories, icon, balance: 0, allocatedAmount: 0, usedAmount: 0
+            });
         }
-    }
-    
-    renderCategoryManager();
-}
 
-function addNewCategory() {
-    const input = document.getElementById('new-cat-input');
-    const newName = input.value.trim();
-    if (!newName) return;
-    
-    const allCats = getAllCategories();
-    if (allCats.includes(newName)) {
-        alert("Kategori sudah ada!");
-        return;
-    }
-    
-    let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
-    customCats.push(newName);
-    localStorage.setItem('customCategories', JSON.stringify(customCats));
-    
-    input.value = '';
-    renderCategoryManager();
-}
+        localStorage.setItem('pockets', JSON.stringify(pockets));
+        document.getElementById('pocket-modal').classList.add('hidden');
+        renderPockets();
+        renderAll();
+        showToast('Kantong berhasil disimpan', 'success');
+    });
 
-function deleteCategory(catName) {
-    if (!confirm(`Hapus kategori "${catName}"? Transaksi lama yang memakai kategori ini tidak akan diubah.`)) return;
-    
-    if (DEFAULT_CONFIG.categories.includes(catName)) {
-        let deletedCats = JSON.parse(localStorage.getItem('deletedCategories')) || [];
-        if (!deletedCats.includes(catName)) {
-            deletedCats.push(catName);
-            localStorage.setItem('deletedCategories', JSON.stringify(deletedCats));
+    const allocAdd = document.getElementById('btn-alloc-add');
+    const allocSub = document.getElementById('btn-alloc-sub');
+    if(allocAdd) allocAdd.addEventListener('click', () => {
+        document.getElementById('pocket-alloc-type').value = 'add';
+        updateSavingsPreview();
+        allocAdd.className = 'flex-1 py-1.5 text-xs font-bold rounded-md bg-slate-900/60 text-emerald-400 shadow-sm';
+        allocSub.className = 'flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200';
+    });
+    if(allocSub) allocSub.addEventListener('click', () => {
+        document.getElementById('pocket-alloc-type').value = 'sub';
+        updateSavingsPreview();
+        allocSub.className = 'flex-1 py-1.5 text-xs font-bold rounded-md bg-slate-900/60 text-rose-400 shadow-sm';
+        allocAdd.className = 'flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200';
+    });
+
+    const allocCancel = document.getElementById('pocket-alloc-cancel');
+    if(allocCancel) allocCancel.addEventListener('click', () => document.getElementById('pocket-allocate-modal').classList.add('hidden'));
+
+    const allocSave = document.getElementById('pocket-alloc-save');
+    if(allocSave) allocSave.addEventListener('click', () => {
+        if (allocSave.disabled || !savingsOperationId) return;
+        const id = document.getElementById('pocket-alloc-id').value;
+        const amt = Number(document.getElementById('pocket-alloc-amt').value);
+        const type = document.getElementById('pocket-alloc-type').value;
+
+        try {
+            allocSave.disabled = true;
+            allocateSavings(id, amt, document.getElementById('pocket-alloc-wallet').value, type, savingsOperationId);
+            savingsOperationId = null;
+            document.getElementById('pocket-allocate-modal').classList.add('hidden');
+            fetchData();
+            showToast('Transfer tabungan berhasil dicatat', 'success');
+            syncToSpreadsheet();
+        } catch (error) {
+            showToast(savingsOperationId ? error.message : 'Transfer sudah tersimpan. Muat ulang halaman untuk memperbarui tampilan.', 'error');
         }
-    } else {
-        let customCats = JSON.parse(localStorage.getItem('customCategories')) || [];
-        customCats = customCats.filter(c => c !== catName);
-        localStorage.setItem('customCategories', JSON.stringify(customCats));
-    }
-    
-    renderCategoryManager();
-}
+        finally { allocSave.disabled = !savingsOperationId; }
 
-function resetCategories() {
-    if (!confirm("Kembalikan semua kategori ke bawaan pabrik? Kategori kustom akan terhapus.")) return;
-    localStorage.removeItem('customCategories');
-    localStorage.removeItem('deletedCategories');
-    renderCategoryManager();
-}
+    });
+});

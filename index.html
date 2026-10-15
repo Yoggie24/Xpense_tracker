@@ -1,40 +1,14 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="id">
 
 <head>
     <meta charset="UTF-8">
+    <script src="assets/js/theme.js"></script>
     <meta name="viewport"
-        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>Simple Money Tracker</title>
+        content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <title>FinTracker PRO ? Personal Finance</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* Formal Theme utilities */
-        .formal-card {
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            border-radius: 1rem;
-            box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
-            transition: box-shadow 0.2s ease, transform 0.2s ease;
-        }
-
-        .formal-card:hover {
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-        }
-
-        /* Custom Inputs */
-        .input-formal {
-            transition: all 0.2s ease;
-            background: #ffffff;
-            border: 1px solid #cbd5e1;
-            color: #0f172a;
-        }
-
-        .input-formal:focus {
-            box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.2);
-            border-color: #2563eb;
-            outline: none;
-        }
-
         @media print {
             body * {
                 visibility: hidden;
@@ -76,16 +50,16 @@
                 extend: {
                     colors: {
                         theme: {
-                            bg: '#f8fafc',
-                            card: '#ffffff',
-                            border: '#e2e8f0',
-                            primary: '#4F46E5', /* Indigo 600 */
+                            bg: '#0b0f19',
+                            card: '#0f172a',
+                            border: '#1e293b',
+                            primary: '#6366f1', /* Indigo 600 */
                             primaryHover: '#4338CA', /* Indigo 700 */
                             primaryLight: '#818CF8', /* Indigo 400 */
                         }
                     },
                     fontFamily: {
-                        sans: ['Inter', 'sans-serif'],
+                        sans: ['Plus Jakarta Sans', 'sans-serif'],
                         mono: ['JetBrains Mono', 'monospace'],
                     }
                 }
@@ -95,95 +69,108 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
     <link
-        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap"
         rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link rel="stylesheet" href="assets/css/style.css">
+    <link rel="stylesheet" href="assets/css/futuristic.css">
+    <link rel="stylesheet" href="assets/css/workspace.css">
+    <link rel="stylesheet" href="assets/css/system-config.css">
+    <link rel="stylesheet" href="assets/css/minimal.css">
+    <meta name="theme-color" content="#0b0f19">
 </head>
 
-<<body
-    class="bg-slate-50 min-h-screen text-slate-700 selection:bg-blue-100 flex overflow-hidden">
+<body
+    class="fintracker-theme bg-slate-50 dark:bg-slate-950 min-h-screen text-slate-900 dark:text-slate-100 selection:bg-blue-500/20 flex overflow-hidden">
 
-    <div id="init-loader" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-theme-bg text-slate-900">
+    <div id="init-loader" class="fixed inset-0 z-[60] flex flex-col items-center justify-center bg-theme-bg text-slate-100">
         <div class="loader mb-4"></div>
         <p class="text-sm text-theme-primary animate-pulse font-medium">Loading FinTracker...</p>
     </div>
 
-    <!-- Desktop Sidebar -->
-    <aside class="hidden md:flex flex-col w-[260px] bg-[#18342E] text-slate-300 h-full shadow-xl z-50 flex-shrink-0">
-        <!-- Logo -->
-        <div class="p-6 flex items-center gap-3 border-b border-white/10">
-            <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-md text-white">
-                <i class="fas fa-wallet text-sm"></i>
+    <aside id="sidebar-menu" class="persistent-sidebar w-64 shrink-0 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950">
+        <!-- Persistent brand -->
+        <div class="p-6 flex items-center justify-between border-b border-white/10">
+            <div class="flex items-center gap-3">
+                <div class="w-8 h-8 rounded-lg bg-emerald-500 flex items-center justify-center shadow-md text-white">
+                    <i class="fas fa-wallet text-sm"></i>
+                </div>
+                <h1 class="sidebar-brand text-xl font-bold text-white tracking-tight">FinTracker <span class="brand-badge">PRO</span></h1>
             </div>
-            <h1 class="text-xl font-bold text-white tracking-tight">FinTracker <span class="text-[10px] bg-emerald-500 px-1.5 py-0.5 rounded ml-1 text-white">PRO</span></h1>
         </div>
 
         <!-- Navigation -->
         <div class="flex-1 overflow-y-auto py-4 custom-scroll">
-            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">MENU UTAMA</div>
+            <div class="sidebar-group-label px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-400">MENU UTAMA</div>
             <nav class="space-y-1 px-3 mb-8">
                 <button class="desk-nav-btn desk-nav-active w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all" data-target="view-dashboard">
-                    <i class="fas fa-border-all w-5"></i> Dashboard
+                    <i class="fas fa-border-all w-5"></i> <span class="nav-label">Dashboard</span>
                 </button>
                 <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-add">
-                    <i class="fas fa-plus-circle w-5"></i> Tambah Transaksi
+                    <i class="fas fa-plus-circle w-5"></i> <span class="nav-label">Tambah Transaksi</span>
                 </button>
                 <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-transactions">
-                    <i class="fas fa-list-ul w-5"></i> Riwayat Transaksi
+                    <i class="fas fa-list-ul w-5"></i> <span class="nav-label">Riwayat Transaksi</span>
                 </button>
             </nav>
 
-            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">MODUL</div>
+            <div class="sidebar-group-label px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-400">MODUL</div>
             <nav class="space-y-1 px-3 mb-8">
                 <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-daily">
-                    <i class="fas fa-calendar-day w-5"></i> Laporan Harian
+                    <i class="fas fa-calendar-day w-5"></i> <span class="nav-label">Laporan Harian</span>
                 </button>
                 <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-calendar">
-                    <i class="far fa-calendar-alt w-5"></i> Kalender
+                    <i class="far fa-calendar-alt w-5"></i> <span class="nav-label">Kalender</span>
+                </button>
+                <button class="desk-nav-btn w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5" data-target="view-pockets">
+                    <i class="fas fa-box-open w-5"></i> <span class="nav-label">Kantong</span>
                 </button>
             </nav>
-            
-            <div class="px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-500">BANTUAN</div>
+
+            <div class="sidebar-group-label px-6 mb-2 text-[10px] font-bold tracking-widest text-slate-400">BANTUAN</div>
             <nav class="space-y-1 px-3">
                 <button id="settings-btn" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all text-slate-400 hover:text-white hover:bg-white/5">
-                    <i class="fas fa-cog w-5"></i> Pengaturan
+                    <i class="fas fa-cog w-5"></i> <span class="nav-label">System Config</span>
                 </button>
             </nav>
         </div>
+        <div class="sidebar-footnote"><div class="sidebar-monogram" aria-hidden="true">F.</div><div><strong>Personal workspace</strong><span>Rencanakan. Catat. Bertumbuh.</span></div></div>
     </aside>
 
     <!-- Main Content -->
-    <div id="main-content" class="flex-1 flex flex-col h-screen overflow-y-auto relative w-full pb-24 md:pb-0">
+    <div id="main-content" class="flex-1 flex flex-col h-screen overflow-y-auto relative min-w-0">
 
         <!-- Top Header -->
-        <header class="sticky top-0 z-40 bg-white/80 backdrop-blur-md border-b border-slate-200 px-6 py-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
-            <div>
-                <h2 class="text-2xl font-bold text-slate-800">Selamat Pagi, Boss!</h2>
-                <p class="text-xs text-slate-500 mt-1">Berikut ringkasan finansial kamu hari ini.</p>
-            </div>
-            
-            <div class="flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
-                <div class="hidden xl:block text-right mr-2 flex-shrink-0">
-                    <div id="header-date" class="text-sm font-bold text-slate-800"></div>
-                    <div id="header-time" class="text-[10px] text-slate-500"></div>
+        <header class="floating-header sticky top-3 z-40 bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 rounded-2xl mx-3 md:mx-6 mt-3 px-4 md:px-6 py-4 flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div>
+                    <p class="header-breadcrumb">Workspace <span>/</span> Keuangan pribadi</p><h2 id="workspace-page-title" class="text-2xl font-bold text-slate-100">Ringkasan</h2>
+
                 </div>
-                
-                <button onclick="document.querySelector('[data-target=\'view-add\']').click()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap shadow-sm shadow-emerald-200 flex-shrink-0">QUICK SPEND</button>
-                
-                <div class="flex bg-slate-100 p-1 rounded-full border border-slate-200 flex-shrink-0">
-                    <select id="dashboard-period" class="bg-transparent text-xs font-semibold rounded-full px-3 py-1.5 text-slate-700 outline-none cursor-pointer hover:bg-white transition appearance-none text-center">
+            </div>
+
+            <button id="theme-toggle" type="button" class="theme-toggle border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 transition-colors" aria-pressed="false">Dark Mode</button>
+            <div class="header-controls flex items-center gap-3 w-full lg:w-auto overflow-x-auto pb-2 lg:pb-0 hide-scrollbar">
+                <div class="hidden xl:block text-right mr-2 flex-shrink-0">
+                    <div id="header-date" class="text-sm font-bold text-slate-100"></div>
+                    <div id="header-time" class="text-[10px] text-slate-400"></div>
+                </div>
+
+                <button onclick="document.querySelector('[data-target=\'view-add\']').click()" class="quick-spend bg-gradient-to-r from-cyan-500 to-indigo-500 text-white px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap shadow-sm shadow-emerald-500/10 flex-shrink-0"><i class="fas fa-plus mr-2" aria-hidden="true"></i> Transaksi</button>
+
+                <div class="flex bg-slate-800/50 p-1 rounded-full border border-slate-800/80 flex-shrink-0">
+                    <select id="dashboard-period" class="bg-transparent text-xs font-semibold rounded-full px-3 py-1.5 text-slate-200 outline-none cursor-pointer hover:bg-slate-900/60 transition appearance-none text-center">
                         <option value="today">Hari Ini</option>
                         <option value="week">Minggu Ini</option>
                         <option value="month" selected>Bulan Ini</option>
                         <option value="all">Semua Waktu</option>
                     </select>
                 </div>
-                
+
                 <div class="flex items-center gap-2 flex-shrink-0">
-                    <button id="syncAll" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Sync"><i class="fas fa-sync-alt text-xs"></i></button>
-                    <button id="export-btn" class="bg-white border border-slate-200 hover:bg-slate-50 text-slate-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Screenshot"><i class="fas fa-camera text-xs"></i></button>
-                    <button id="logout-btn" class="bg-rose-50 border border-rose-100 hover:bg-rose-100 text-rose-600 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm"><i class="fas fa-power-off text-xs"></i></button>
+                    <button id="syncAll" class="bg-slate-900/60 border border-slate-800/80 hover:bg-slate-950/50 text-slate-300 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Sync"><i class="fas fa-sync-alt text-xs"></i></button>
+                    <button id="export-btn" class="bg-slate-900/60 border border-slate-800/80 hover:bg-slate-950/50 text-slate-300 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm" title="Screenshot"><i class="fas fa-camera text-xs"></i></button>
+                    <button id="logout-btn" aria-label="Keluar dari aplikasi" title="Keluar" class="bg-rose-500/10 border border-rose-500/20 hover:bg-rose-500/20 text-rose-400 w-9 h-9 rounded-full flex items-center justify-center transition shadow-sm"><i class="fas fa-power-off text-xs"></i></button>
                 </div>
             </div>
         </header>
@@ -192,97 +179,123 @@
 
             <!-- VIEW: DASHBOARD -->
             <div id="view-dashboard" class="tab-view space-y-6">
+                <section class="workspace-intro">
+                    <div><p class="workspace-eyebrow">KEUANGAN, DALAM KENDALIMU</p><h1>Ruang untuk hidup lebih tenang.</h1><p>Lihat posisi keuanganmu, atur pengeluaran, dan beri tempat untuk rencana berikutnya.</p></div>
+                    <button type="button" class="workspace-action" onclick="switchTab('view-add')"><i class="fas fa-plus" aria-hidden="true"></i> Catat transaksi</button>
+                </section>
+                <section class="overview-hero" aria-label="Ringkasan keuangan">
+                    <div id="summary-wealth" class="wealth-hero bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition relative overflow-hidden">
+                        <div class="wealth-contours" aria-hidden="true"><span></span><span></span><span></span></div>
+                        <div class="flex justify-between items-start mb-2 relative z-10">
+                            <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2">
+                                <div class="w-5 h-5 rounded-full bg-indigo-500/10 flex items-center justify-center text-indigo-500">
+                                    <i class="fas fa-wallet text-[9px]"></i>
+                                </div> TOTAL KEKAYAAN
+                            </div>
+                            <div class="text-[8px] text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded font-mono border border-indigo-500/20 hidden sm:block" id="rate-display">Rate: ...</div>
+                        </div>
+                        <div id="wealth-display" class="text-slate-100 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight mt-auto relative z-10">...</div>
+                    <p class="hero-note">Saldo akun, tabungan, dan nilai investasi &middot; Semua waktu</p></div>
+                    <div class="overview-companion">
+                        <p class="workspace-eyebrow">LANGKAH BERIKUTNYA</p>
+                        <h2>Rencana kecil.<br>Dampak berarti.</h2>
+                        <p>Hubungkan kategori ke kantong budget untuk memantau pengeluaran bulanan secara otomatis.</p>
+                        <div class="overview-facts"><div><strong id="workspace-record-count">0</strong><span>Transaksi tercatat</span></div><div><strong id="workspace-pocket-count">0</strong><span>Kantong aktif</span></div></div>
+                        <button type="button" class="workspace-link" onclick="switchTab('view-pockets')">Kelola kantong <i class="fas fa-arrow-right" aria-hidden="true"></i></button>
+                    </div>
+                </section>
+                <section class="asset-breakdown" aria-label="Komposisi aset">
+                    <div><span>Saldo bank &amp; wallet</span><strong id="asset-wallet-total">Rp 0</strong></div>
+                    <div><span>Tabungan dari transfer</span><strong id="asset-savings-total">Rp 0</strong></div>
+                    <div><span>Nilai investasi</span><strong id="asset-investment-total">Rp 0</strong></div>
+                    <p>Ketiganya membentuk total aset. Saldo tabungan lama tetap bagian dari dana wallet, bukan aset tambahan.</p>
+                </section>
+                <section class="burn-rate-card" aria-label="Daily burn rate">
+                    <div><p class="workspace-eyebrow">DAILY BURN RATE</p><strong id="daily-burn-value">Rp 0 / hari</strong><p id="daily-burn-period" class="text-xs text-slate-400 mt-2"></p></div>
+                    <div><p class="text-xs text-slate-400">Rata-rata pengeluaran per hari kalender pada bulan kantong yang aktif.</p><button type="button" class="workspace-link" onclick="openSystemConfig()">Atur pengecualian <i class="fas fa-arrow-right" aria-hidden="true"></i></button></div>
+                </section>
+                <div class="overview-caption"><span><i class="fas fa-circle" aria-hidden="true"></i> Ringkasan arus keuangan</span><span id="workspace-period-label">Bulan ini</span></div>
 
-                <div class="grid grid-cols-2 lg:grid-cols-6 gap-3 md:gap-4">
+
+                <div class="workspace-metrics grid grid-cols-2 gap-3 md:gap-4">
 
                     <!-- Available Cash -->
-                    <div id="summary-cash" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
-                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
+                    <div id="summary-cash" class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-slate-800/50 flex items-center justify-center text-slate-400">
                                 <i class="fas fa-wallet text-[9px]"></i>
                             </div> TOTAL SALDO
                         </div>
-                        <div class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                        <div class="text-slate-100 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
                     <!-- Income -->
-                    <div id="summary-income" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
-                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div class="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center text-emerald-500">
+                    <div id="summary-income" class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-500">
                                 <i class="fas fa-arrow-down text-[9px]"></i>
                             </div> PEMASUKAN
                         </div>
-                        <div class="text-emerald-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                        <div class="text-emerald-400 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
                     <!-- Expense -->
-                    <div id="summary-expense" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
-                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div class="w-5 h-5 rounded-full bg-rose-50 flex items-center justify-center text-rose-500">
+                    <div id="summary-expense" class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500">
                                 <i class="fas fa-arrow-up text-[9px]"></i>
                             </div> PENGELUARAN
                         </div>
-                        <div class="text-rose-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                        <div class="text-rose-400 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
                     <!-- Net Flow -->
-                    <div id="summary-net" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
-                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div class="w-5 h-5 rounded-full bg-blue-50 flex items-center justify-center text-blue-500">
+                    <div id="summary-net" class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center text-blue-500">
                                 <i class="fas fa-scale-balanced text-[9px]"></i>
                             </div> NET FLOW
                         </div>
-                        <div class="text-blue-600 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                        <div class="text-blue-400 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
                     <!-- Investments -->
-                    <div id="summary-invest" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
-                        <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
-                            <div class="w-5 h-5 rounded-full bg-yellow-50 flex items-center justify-center text-yellow-600">
+                    <div id="summary-invest" class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition">
+                        <div class="text-[10px] text-slate-400 uppercase font-bold tracking-wider flex items-center gap-2 mb-2">
+                            <div class="w-5 h-5 rounded-full bg-yellow-500/10 flex items-center justify-center text-yellow-400">
                                 <i class="fas fa-chart-pie text-[9px]"></i>
                             </div> INVESTASI
                         </div>
-                        <div class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
+                        <div class="text-slate-100 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight stat-value">...</div>
                     </div>
 
-                    <!-- Net Worth -->
-                    <div id="summary-wealth" class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between min-h-[100px] hover:shadow-md transition relative overflow-hidden">
-                        <div class="absolute -right-4 -bottom-4 opacity-5"><i class="fas fa-gem text-6xl"></i></div>
-                        <div class="flex justify-between items-start mb-2 relative z-10">
-                            <div class="text-[10px] text-slate-500 uppercase font-bold tracking-wider flex items-center gap-2">
-                                <div class="w-5 h-5 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500">
-                                    <i class="fas fa-wallet text-[9px]"></i>
-                                </div> KEKAYAAN
-                            </div>
-                            <div class="text-[8px] text-indigo-600 bg-indigo-50 px-1.5 py-0.5 rounded font-mono border border-indigo-100 hidden sm:block" id="rate-display">Rate: ...</div>
-                        </div>
-                        <div id="wealth-display" class="text-slate-800 font-bold text-sm md:text-lg lg:text-xl truncate tracking-tight mt-auto relative z-10">...</div>
-                    </div>
+
+
                 </div>
 
                 <!-- Row 2: Charts and Activity -->
-                <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mt-4 sm:mt-6">
-                    
+                <div class="workspace-analytics grid grid-cols-1 gap-4 sm:gap-6 mt-4 sm:mt-6">
+
                     <!-- Trend Chart (Arus Kas) -->
-                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 h-[320px] 2xl:h-[400px] flex flex-col lg:col-span-2">
+                    <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-5 md:p-6 h-[320px] 2xl:h-[400px] flex flex-col lg:col-span-2">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-chart-line text-indigo-500"></i> Arus Kas (Bulan Ini)</h3>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fas fa-chart-line text-indigo-500"></i> Pola pengeluaran ? 30 hari terakhir</h3>
                         </div>
-                        <div class="relative flex-grow w-full"><canvas id="trend-line-chart"></canvas></div>
+                        <div class="relative flex-grow w-full"><canvas id="trend-line-chart" role="img" aria-label="Grafik pengeluaran harian 30 hari terakhir"></canvas></div>
                     </div>
 
                     <!-- Pie Chart (Breakdown) -->
-                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
+                    <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-chart-pie text-emerald-500"></i> Rincian Pengeluaran</h3>
-                            <select id="chart-currency-toggle" class="bg-slate-50 border border-slate-200 text-[10px] font-bold rounded-lg px-2 py-1 text-slate-600 outline-none">
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fas fa-chart-pie text-emerald-500"></i> Ke mana uangmu pergi?</h3>
+                            <select id="chart-currency-toggle" class="bg-slate-950/50 border border-slate-800/80 text-[10px] font-bold rounded-lg px-2 py-1 text-slate-300 outline-none">
                                 <option value="IDR">IDR</option>
                                 <option value="USD">USD</option>
                             </select>
                         </div>
-                        <div class="flex flex-col sm:flex-row h-full overflow-hidden items-center">
+                        <div class="spending-breakdown flex flex-col sm:flex-row h-full overflow-hidden items-center">
                             <div class="w-full sm:w-1/2 relative flex items-center justify-center p-2">
-                                <canvas id="expense-pie-chart"></canvas>
+                                <canvas id="expense-pie-chart" role="img" aria-label="Proporsi pengeluaran per kategori"></canvas>
                             </div>
                             <div id="expense-details" class="w-full sm:w-1/2 mt-4 sm:mt-0 sm:pl-4 space-y-2 overflow-y-auto max-h-full custom-scroll text-xs">
                             </div>
@@ -290,10 +303,10 @@
                     </div>
 
                     <!-- Recent Activity -->
-                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
+                    <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-[320px] 2xl:h-[400px]">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-history text-slate-400"></i> Aktivitas Terakhir</h3>
-                            <a href="#" onclick="document.querySelector('[data-target=\'view-transactions\']').click(); return false;" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-600">Lihat semua</a>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fas fa-history text-slate-400"></i> Aktivitas Terakhir</h3>
+                            <a href="#" onclick="document.querySelector('[data-target=\'view-transactions\']').click(); return false;" class="text-[10px] font-bold text-indigo-500 hover:text-indigo-400">Lihat semua</a>
                         </div>
                         <div id="dash-recent-list" class="space-y-3 flex-grow overflow-y-auto custom-scroll pr-1"></div>
                     </div>
@@ -302,32 +315,32 @@
 
                 <!-- Row 3: Top Categories and Balances -->
                 <div class="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6 mt-4 sm:mt-6">
-                    
+
                     <!-- Top Categories -->
-                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
+                    <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-fire text-orange-500"></i> Progres Kategori <span id="top-cat-period-lbl" class="text-[10px] font-normal text-slate-500 ml-1">(Bulan Ini)</span></h3>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fas fa-fire text-orange-500"></i> Progres Kategori <span id="top-cat-period-lbl" class="text-[10px] font-normal text-slate-400 ml-1">(Bulan Ini)</span></h3>
                         </div>
                         <div id="dash-top-cat-list" class="space-y-5 flex-grow overflow-y-auto custom-scroll pr-2 mt-2">
                         </div>
                     </div>
 
                     <!-- Account Balances -->
-                    <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
+                    <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-5 md:p-6 flex flex-col h-auto min-h-[280px] 2xl:min-h-[350px] lg:col-span-2">
                         <div class="flex justify-between items-center mb-4 flex-shrink-0">
-                            <h3 class="text-sm font-bold text-slate-800 flex items-center gap-2"><i class="fas fa-wallet text-indigo-500"></i> Saldo Akun</h3>
-                            <i class="fas fa-eye text-slate-400 text-xs cursor-pointer hover:text-slate-600 transition"></i>
+                            <h3 class="text-sm font-bold text-slate-100 flex items-center gap-2"><i class="fas fa-wallet text-indigo-500"></i> Saldo Akun</h3>
+                            <i class="fas fa-eye text-slate-400 text-xs cursor-pointer hover:text-slate-300 transition"></i>
                         </div>
-                        
+
                         <div class="flex-grow overflow-y-auto custom-scroll pr-2 space-y-4">
                             <!-- Wallets -->
                             <div id="account-balances-container" class="space-y-3"></div>
-                            
-                            <hr class="border-slate-100 my-4">
-                            
+
+                            <hr class="border-slate-800/80 my-4">
+
                             <!-- Investments -->
                             <div class="flex justify-between items-center mb-3">
-                                <h4 class="text-xs font-bold text-slate-500 uppercase tracking-wider">Investasi</h4>
+                                <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">Investasi</h4>
                             </div>
                             <div id="investment-balances-container" class="space-y-3"></div>
                         </div>
@@ -336,12 +349,59 @@
                 </div>
 
                 <!-- Live Rates & Sync (Moved to Bottom or Hidden, Keeping for functionality) -->
-                <div class="bg-white border border-slate-100 shadow-sm rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6">
+                <div class="bg-slate-900/60 border border-slate-800/80 shadow-sm rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 mt-4 sm:mt-6">
                     <div class="flex items-center gap-3">
                         <div id="syncStatus" class="text-[10px] text-slate-400 font-mono flex items-center h-full">System Ready.</div>
                     </div>
-                    <div id="currentRatesDisplay" class="flex gap-4 text-xs font-mono text-slate-500">
+                    <div id="currentRatesDisplay" class="flex gap-4 text-xs font-mono text-slate-400">
                         <!-- Populated by JS -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- VIEW: POCKETS (KANTONG) -->
+            <div id="view-pockets" class="tab-view hidden space-y-6">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-2">
+                    <div>
+                        <h2 class="text-xl font-bold text-slate-100">Kantong Keuangan</h2>
+                        <p class="text-xs text-slate-400">Alokasikan dana Anda untuk budget dan tabungan.</p>
+                    </div>
+                    <button id="add-pocket-btn" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold transition shadow-sm shadow-indigo-500/10 flex items-center gap-2">
+                        <i class="fas fa-plus"></i> Tambah Kantong
+                    </button>
+                </div>
+
+                <section class="budget-plan-panel border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-white dark:bg-slate-900">
+                    <form id="monthly-income-form" class="income-base-form">
+                        <label for="monthly-income-base">Base Income Bulan Ini (IDR)</label>
+                        <div><input id="monthly-income-base" type="number" min="1" step="any" required class="input-formal rounded-lg px-3 py-2" value="12000000"><button type="submit" class="workspace-action">Simpan</button></div>
+                    </form>
+                    <div class="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                        <div><p id="budget-plan-total" class="font-semibold"></p><p id="budget-plan-expense" class="text-sm font-semibold text-rose-500 dark:text-rose-300 mt-1"></p><p id="budget-plan-note" class="text-xs mt-2"></p></div>
+                        <button type="button" id="budget-reset-btn" class="workspace-action whitespace-nowrap"><i class="fas fa-rotate-left mr-1"></i> Reset Bulan</button>
+                    </div>
+                </section>
+                <div class="grid grid-cols-1 gap-6">
+                    <!-- Target Tabungan -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-4">
+                            <i class="fas fa-bullseye text-emerald-500"></i>
+                            <h3 class="text-sm font-bold text-slate-100 uppercase tracking-widest">Target Tabungan</h3>
+                        </div>
+                        <div id="saving-pockets-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <!-- Populated via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Budget Bulanan -->
+                    <div>
+                        <div class="flex items-center gap-2 mb-4 mt-2">
+                            <i class="fas fa-chart-pie text-orange-500"></i>
+                            <h3 class="text-sm font-bold text-slate-100 uppercase tracking-widest">Budget Bulanan</h3>
+                        </div>
+                        <div id="budget-pockets-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <!-- Populated via JS -->
+                        </div>
                     </div>
                 </div>
             </div>
@@ -350,35 +410,35 @@
             <div id="view-transactions" class="tab-view hidden space-y-4">
                 <div class="formal-card p-5">
                     <div class="flex flex-wrap gap-2 mb-5">
-                        <button class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold" onclick="applyDatePreset('thisMonth')">This Month</button>
-                        <button class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold" onclick="applyDatePreset('lastMonth')">Last Month</button>
-                        <button class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold" onclick="applyDatePreset('last30')">30 Days</button>
-                        <button class="px-4 py-2 bg-slate-100 hover:bg-slate-200 rounded-lg text-xs font-semibold" onclick="applyDatePreset('thisYear')">This Year</button>
-                        <button class="px-4 py-2 bg-rose-50 text-rose-600 hover:bg-rose-100 rounded-lg text-xs font-semibold"
+                        <button class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-xs font-semibold" onclick="applyDatePreset('thisMonth')">This Month</button>
+                        <button class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-xs font-semibold" onclick="applyDatePreset('lastMonth')">Last Month</button>
+                        <button class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-xs font-semibold" onclick="applyDatePreset('last30')">30 Days</button>
+                        <button class="px-4 py-2 bg-slate-800/50 hover:bg-slate-700/50 rounded-lg text-xs font-semibold" onclick="applyDatePreset('thisYear')">This Year</button>
+                        <button class="px-4 py-2 bg-rose-500/10 text-rose-400 hover:bg-rose-500/20 rounded-lg text-xs font-semibold"
                             onclick="applyDatePreset('clear')">Clear</button>
-                        <button class="px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 rounded-lg text-xs font-bold ml-auto flex items-center gap-2"
+                        <button class="px-4 py-2 bg-indigo-500/10 text-indigo-400 hover:bg-indigo-500/20 rounded-lg text-xs font-bold ml-auto flex items-center gap-2"
                             onclick="printEStatement()"><i class="fas fa-print"></i> Print E-Statement</button>
                     </div>
 
                     <div
-                        class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 bg-slate-50 p-3 rounded-2xl border border-slate-100">
+                        class="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4 bg-slate-950/50 p-3 rounded-2xl border border-slate-800/80">
                         <div class="space-y-1">
-                            <label class="text-[10px] text-slate-500 uppercase font-bold ml-1">From</label>
+                            <label class="text-[10px] text-slate-400 uppercase font-bold ml-1">From</label>
                             <input type="date" id="filter-start"
                                 class="input-formal rounded-xl px-3 py-2 text-xs w-full">
                         </div>
                         <div class="space-y-1">
-                            <label class="text-[10px] text-slate-500 uppercase font-bold ml-1">To</label>
+                            <label class="text-[10px] text-slate-400 uppercase font-bold ml-1">To</label>
                             <input type="date" id="filter-end"
                                 class="input-formal rounded-xl px-3 py-2 text-xs w-full">
                         </div>
                         <div class="space-y-1">
-                            <label class="text-[10px] text-slate-500 uppercase font-bold ml-1">Category</label>
+                            <label class="text-[10px] text-slate-400 uppercase font-bold ml-1">Category</label>
                             <select id="filter-cat"
                                 class="input-formal rounded-xl px-3 py-2 text-xs w-full appearance-none"></select>
                         </div>
                         <div class="space-y-1">
-                            <label class="text-[10px] text-slate-500 uppercase font-bold ml-1">Wallet</label>
+                            <label class="text-[10px] text-slate-400 uppercase font-bold ml-1">Wallet</label>
                             <select id="filter-acc"
                                 class="input-formal rounded-xl px-3 py-2 text-xs w-full appearance-none"></select>
                         </div>
@@ -396,28 +456,28 @@
 
                 <!-- Desktop Table -->
                 <div class="hidden lg:block overflow-hidden rounded-3xl formal-card">
-                    <table class="min-w-full divide-y divide-slate-100">
-                        <thead class="bg-slate-50">
+                    <table class="floating-table min-w-full">
+                        <thead class="bg-slate-950/50">
                             <tr>
-                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider sortable cursor-pointer hover:text-indigo-600 transition"
+                                <th class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider sortable cursor-pointer hover:text-indigo-400 transition"
                                     data-sort="date">Date <i class="fas fa-sort ml-1"></i></th>
                                 <th
-                                    class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Description</th>
                                 <th
-                                    class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Wallet</th>
                                 <th
-                                    class="px-6 py-4 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    class="px-6 py-4 text-left text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Category</th>
-                                <th class="px-6 py-4 text-right text-xs font-bold text-slate-500 uppercase tracking-wider sortable cursor-pointer hover:text-indigo-600 transition"
+                                <th class="px-6 py-4 text-right text-xs font-bold text-slate-400 uppercase tracking-wider sortable cursor-pointer hover:text-indigo-400 transition"
                                     data-sort="amt">Amount <i class="fas fa-sort ml-1"></i></th>
                                 <th
-                                    class="px-4 py-4 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">
+                                    class="px-4 py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-wider">
                                     Action</th>
                             </tr>
                         </thead>
-                        <tbody id="data-body" class="divide-y divide-slate-100"></tbody>
+                        <tbody id="data-body"></tbody>
                     </table>
                 </div>
             </div>
@@ -425,26 +485,26 @@
             <!-- VIEW: DAILY -->
             <div id="view-daily" class="tab-view hidden">
                 <div class="formal-card rounded-3xl overflow-hidden max-w-4xl mx-auto">
-                    <div class="p-5 border-b border-slate-100 bg-slate-50 flex items-center gap-2"><i
-                            class="fas fa-calendar-day text-indigo-600"></i>
-                        <h3 class="text-sm font-semibold text-slate-800">Daily Expenses Overview</h3>
+                    <div class="p-5 border-b border-slate-800/80 bg-slate-950/50 flex items-center gap-2"><i
+                            class="fas fa-calendar-day text-indigo-400"></i>
+                        <h3 class="text-sm font-semibold text-slate-100">Daily Expenses Overview</h3>
                     </div>
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-slate-100 text-sm">
-                            <thead class="bg-slate-50">
+                        <table class="floating-table min-w-full text-sm">
+                            <thead class="bg-slate-950/50">
                                 <tr>
                                     <th
-                                        class="px-6 py-4 text-left font-medium text-slate-500 text-xs uppercase tracking-wider">
+                                        class="px-6 py-4 text-left font-medium text-slate-400 text-xs uppercase tracking-wider">
                                         Date</th>
                                     <th
-                                        class="px-6 py-4 text-right font-medium text-slate-500 text-xs uppercase tracking-wider">
+                                        class="px-6 py-4 text-right font-medium text-slate-400 text-xs uppercase tracking-wider">
                                         Total IDR</th>
                                     <th
-                                        class="px-6 py-4 text-right font-medium text-slate-500 text-xs uppercase tracking-wider">
+                                        class="px-6 py-4 text-right font-medium text-slate-400 text-xs uppercase tracking-wider">
                                         Total USD</th>
                                 </tr>
                             </thead>
-                            <tbody id="daily-body" class="divide-y divide-slate-100"></tbody>
+                            <tbody id="daily-body"></tbody>
                         </table>
                     </div>
                 </div>
@@ -454,13 +514,13 @@
             <div id="view-calendar" class="tab-view hidden">
                 <div class="formal-card p-5 sm:p-6 rounded-3xl max-w-5xl mx-auto">
                     <div
-                        class="flex items-center justify-between mb-6 bg-slate-50 p-2 rounded-2xl border border-slate-100">
+                        class="flex items-center justify-between mb-6 bg-slate-950/50 p-2 rounded-2xl border border-slate-800/80">
                         <button id="prev-month"
-                            class="p-2 sm:p-3 bg-white rounded-xl hover:bg-slate-100 text-slate-600 transition border border-slate-200"><i
+                            class="p-2 sm:p-3 bg-slate-900/60 rounded-xl hover:bg-slate-800/50 text-slate-300 transition border border-slate-800/80"><i
                                 class="fas fa-chevron-left"></i></button>
-                        <h2 id="calendar-header" class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight"></h2>
+                        <h2 id="calendar-header" class="text-lg sm:text-xl font-bold text-slate-100 tracking-tight"></h2>
                         <button id="next-month"
-                            class="p-2 sm:p-3 bg-white rounded-xl hover:bg-slate-100 text-slate-600 transition border border-slate-200"><i
+                            class="p-2 sm:p-3 bg-slate-900/60 rounded-xl hover:bg-slate-800/50 text-slate-300 transition border border-slate-800/80"><i
                                 class="fas fa-chevron-right"></i></button>
                     </div>
                     <div
@@ -481,16 +541,16 @@
             <div id="view-add" class="tab-view hidden">
                 <div class="formal-card p-5 sm:p-8 rounded-3xl max-w-2xl mx-auto">
                     <div class="flex justify-between items-center mb-8">
-                        <h2 class="text-xl font-bold text-slate-900 flex items-center gap-3" id="form-title">
+                        <h2 class="text-xl font-bold text-slate-100 flex items-center gap-3" id="form-title">
                             <div
-                                class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100">
+                                class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 border border-indigo-500/20">
                                 <i class="fas fa-plus"></i>
                             </div>
                             New Entry
                         </h2>
                         <div class="flex gap-2 items-center">
-                            
-                            
+
+
                             <button id="cancel-edit-btn"
                                 class="hidden text-xs bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-4 py-2 rounded-xl transition font-medium">Cancel
                                 Edit</button>
@@ -498,28 +558,28 @@
                     </div>
 
                     <!-- Modern Segmented Control -->
-                    <div class="relative flex p-1 mb-8 bg-slate-100 rounded-xl border border-slate-200"
+                    <div class="relative flex p-1 mb-8 bg-slate-800/50 rounded-xl border border-slate-800/80"
                         id="type-selector">
                         <div id="segment-indicator"
-                            class="absolute top-1 bottom-1 left-1 bg-white rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] border border-slate-200 w-[calc(33.33%-4px)]">
+                            class="absolute top-1 bottom-1 left-1 bg-slate-900/60 rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0.0,0.2,1)] border border-slate-800/80 w-[calc(33.33%-4px)]">
                         </div>
 
                         <label class="flex-1 text-center relative z-10 cursor-pointer group">
-                            <input type="radio" name="entry-type" value="expense" class="peer hidden" checked>
+                            <input type="radio" name="entry-type" value="expense" class="peer sr-only" checked>
                             <div
-                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-500 transition-all peer-checked:text-rose-600 group-hover:text-slate-700">
+                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-400 transition-all peer-checked:text-rose-400 group-hover:text-slate-200">
                                 EXPENSE</div>
                         </label>
                         <label class="flex-1 text-center relative z-10 cursor-pointer group">
-                            <input type="radio" name="entry-type" value="income" class="peer hidden">
+                            <input type="radio" name="entry-type" value="income" class="peer sr-only">
                             <div
-                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-500 transition-all peer-checked:text-emerald-600 group-hover:text-slate-700">
+                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-400 transition-all peer-checked:text-emerald-400 group-hover:text-slate-200">
                                 INCOME</div>
                         </label>
                         <label class="flex-1 text-center relative z-10 cursor-pointer group">
-                            <input type="radio" name="entry-type" value="transfer" class="peer hidden">
+                            <input type="radio" name="entry-type" value="transfer" class="peer sr-only">
                             <div
-                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-500 transition-all peer-checked:text-blue-600 group-hover:text-slate-700">
+                                class="py-3 text-xs sm:text-sm font-bold rounded-lg text-slate-400 transition-all peer-checked:text-blue-400 group-hover:text-slate-200">
                                 TRANSFER</div>
                         </label>
                     </div>
@@ -528,22 +588,22 @@
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-5">
                             <div class="sm:col-span-2">
                                 <label
-                                    class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">Description</label>
+                                    class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Description</label>
                                 <input type="text" id="entry-desc"
                                     class="w-full input-formal rounded-xl px-4 py-3.5 text-sm placeholder-slate-400"
                                     placeholder="e.g. Lunch with client" required>
                             </div>
                             <div>
                                 <label
-                                    class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">Date</label>
+                                    class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">Date</label>
                                 <input type="date" id="entry-date"
                                     class="w-full input-formal rounded-xl px-4 py-3.5 text-sm text-left appearance-none"
                                     required>
                             </div>
                             <div id="category-group">
                                 <div class="flex justify-between items-center mb-2 ml-1">
-                                    <label class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider">Category</label>
-                                    <button type="button" onclick="openCategoryManager()" class="text-[10px] text-indigo-500 hover:text-indigo-600 font-bold flex items-center gap-1" title="Manage Categories"><i class="fas fa-cog"></i> Manage</button>
+                                    <label class="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Category</label>
+                                    <button type="button" onclick="openCategoryManager()" class="text-[10px] text-indigo-500 hover:text-indigo-400 font-bold flex items-center gap-1" title="Manage Categories"><i class="fas fa-cog"></i> Manage</button>
                                 </div>
                                 <div class="relative">
                                     <select id="entry-cat"
@@ -556,12 +616,18 @@
                                 <input type="text" id="entry-cat-other" placeholder="Type custom category..."
                                     class="hidden w-full mt-2 input-formal rounded-xl px-4 py-3.5 text-sm">
                             </div>
+
+                            <div id="budget-inclusion-group" class="sm:col-span-2 flex items-center gap-3 rounded-xl border border-slate-200 dark:border-slate-800 px-4 py-3">
+                                <input type="checkbox" id="entry-include-budget" checked class="h-4 w-4 accent-indigo-500">
+                                <label for="entry-include-budget" class="text-xs text-slate-300">Masukkan expense ini ke budgeting</label>
+                            </div>
+
                         </div>
 
-                        <div class="p-5 bg-slate-50 rounded-2xl border border-slate-200">
+                        <div class="p-5 bg-slate-950/50 rounded-2xl border border-slate-800/80">
                             <label id="lbl-source-acc"
-                                class="block text-[10px] font-bold text-slate-500 uppercase mb-4 tracking-widest"><i
-                                    class="fas fa-arrow-right mr-1 text-slate-400"></i> From / Account</label>
+                                class="block text-[10px] font-bold text-slate-400 uppercase mb-4 tracking-widest"><i
+                                    class="fas fa-arrow-right mr-1 text-slate-400"></i> Sumber Dana / Akun Bank</label>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div class="relative">
                                     <select id="entry-acc-source"
@@ -585,13 +651,13 @@
                         </div>
 
                         <div id="transfer-target-group"
-                            class="hidden p-5 bg-blue-50 rounded-2xl border border-blue-100 relative">
+                            class="hidden p-5 bg-blue-500/10 rounded-2xl border border-blue-500/20 relative">
                             <div
-                                class="absolute left-1/2 -top-4 transform -translate-x-1/2 bg-white p-2 rounded-full border border-slate-200 text-blue-600 z-10 shadow-sm">
+                                class="absolute left-1/2 -top-4 transform -translate-x-1/2 bg-slate-900/60 p-2 rounded-full border border-slate-800/80 text-blue-400 z-10 shadow-sm">
                                 <i class="fas fa-arrow-down text-sm"></i>
                             </div>
                             <label
-                                class="block text-[10px] font-bold text-blue-600 uppercase mb-4 tracking-widest mt-2"><i
+                                class="block text-[10px] font-bold text-blue-400 uppercase mb-4 tracking-widest mt-2"><i
                                     class="fas fa-arrow-right mr-1 opacity-50"></i> To Destination</label>
                             <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                                 <div class="relative">
@@ -624,73 +690,21 @@
         </div>
     </div>
 
-    <!-- Mobile Nav Bar (Bottom) -->
-    <nav class="md:hidden fixed bottom-0 left-0 right-0 bg-white pb-safe z-40 border-t border-slate-200 shadow-[0_-10px_30px_rgba(0,0,0,0.05)] hidden"
-        id="mobile-nav">
-        <div class="flex justify-around items-center px-2 pt-2 pb-3">
-            <button class="mob-nav-btn mob-nav-active flex flex-col items-center w-1/5 relative group"
-                data-target="view-dashboard">
-                <div
-                    class="nav-icon-bg absolute top-0 w-10 h-10 rounded-full transition-all duration-300 -z-10 group-hover:bg-indigo-50">
-                </div>
-                <i class="fas fa-chart-pie text-lg mt-2 mb-1 z-10 transition-colors"></i>
-                <span class="text-[10px] font-medium z-10 transition-colors">Home</span>
-            </button>
-            <button
-                class="mob-nav-btn text-slate-500 hover:text-indigo-600 flex flex-col items-center w-1/5 relative group transition-colors"
-                data-target="view-transactions">
-                <div
-                    class="nav-icon-bg absolute top-0 w-10 h-10 rounded-full transition-all duration-300 -z-10 group-hover:bg-indigo-50">
-                </div>
-                <i class="fas fa-list-ul text-lg mt-2 mb-1 z-10"></i>
-                <span class="text-[10px] font-medium z-10">List</span>
-            </button>
-            <button
-                class="mob-nav-btn text-slate-500 hover:text-indigo-600 flex flex-col items-center w-1/5 relative group transition-colors -mt-5"
-                data-target="view-add">
-                <div
-                    class="bg-indigo-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 z-10 active:scale-95 transition-transform border-[6px] border-slate-50">
-                    <i class="fas fa-plus text-xl"></i>
-                </div>
-                <span class="text-[10px] font-medium z-10 mt-1">Add</span>
-            </button>
-            <button
-                class="mob-nav-btn text-slate-500 hover:text-indigo-600 flex flex-col items-center w-1/5 relative group transition-colors"
-                data-target="view-daily">
-                <div
-                    class="nav-icon-bg absolute top-0 w-10 h-10 rounded-full transition-all duration-300 -z-10 group-hover:bg-indigo-50">
-                </div>
-                <i class="fas fa-calendar-day text-lg mt-2 mb-1 z-10"></i>
-                <span class="text-[10px] font-medium z-10">Daily</span>
-            </button>
-            <button
-                class="mob-nav-btn text-slate-500 hover:text-indigo-600 flex flex-col items-center w-1/5 relative group transition-colors"
-                data-target="view-calendar">
-                <div
-                    class="nav-icon-bg absolute top-0 w-10 h-10 rounded-full transition-all duration-300 -z-10 group-hover:bg-indigo-50">
-                </div>
-                <i class="far fa-calendar-alt text-lg mt-2 mb-1 z-10"></i>
-                <span class="text-[10px] font-medium z-10">Month</span>
-            </button>
-        </div>
-    </nav>
-
-    <!-- Modals -->
     <div id="delete-modal"
-        class="hidden fixed inset-0 bg-slate-900/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
+        class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="formal-card p-8 w-full max-w-sm text-center">
             <div
-                class="w-16 h-16 bg-rose-50 text-rose-600 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-rose-100">
+                class="w-16 h-16 bg-rose-500/10 text-rose-400 rounded-2xl flex items-center justify-center mx-auto mb-6 border border-rose-500/20">
                 <i class="fas fa-trash-alt text-2xl"></i>
             </div>
-            <h3 class="font-bold text-slate-900 text-xl mb-2">Delete Transaction?</h3>
-            <p class="text-sm text-slate-500 mb-6">This action cannot be undone.</p>
+            <h3 class="font-bold text-slate-100 text-xl mb-2">Delete Transaction?</h3>
+            <p class="text-sm text-slate-400 mb-6">This action cannot be undone.</p>
             <div id="del-item-preview"
-                class="bg-slate-100 p-4 rounded-2xl mb-6 text-sm text-slate-600 border border-slate-200">
+                class="bg-slate-800/50 p-4 rounded-2xl mb-6 text-sm text-slate-300 border border-slate-800/80">
             </div>
             <div class="flex gap-3">
                 <button id="del-cancel"
-                    class="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Cancel</button>
+                    class="flex-1 py-3 px-4 rounded-xl border border-slate-800/80 text-slate-300 font-bold hover:bg-slate-950/50 transition">Cancel</button>
                 <button id="del-confirm"
                     class="flex-1 py-3 px-4 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition">Delete</button>
             </div>
@@ -698,103 +712,182 @@
     </div>
 
     <div id="calendar-detail-modal"
-        class="hidden fixed inset-0 bg-slate-900/50 z-[70] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
+        class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[70] flex items-end sm:items-center justify-center sm:p-4 backdrop-blur-sm">
         <div
-            class="bg-white rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md border-t sm:border border-slate-200 h-[80vh] sm:h-[600px] flex flex-col shadow-2xl">
-            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-100">
-                <h3 id="cal-detail-title" class="font-bold text-slate-900 text-lg"></h3>
+            class="bg-slate-900/60 rounded-t-3xl sm:rounded-3xl p-6 w-full max-w-md border-t sm:border border-slate-800/80 h-[80vh] sm:h-[600px] flex flex-col shadow-2xl">
+            <div class="flex justify-between items-center mb-4 pb-4 border-b border-slate-800/80">
+                <h3 id="cal-detail-title" class="font-bold text-slate-100 text-lg"></h3>
                 <button id="cal-close"
-                    class="text-slate-400 p-2 hover:bg-slate-100 hover:text-slate-600 rounded-full transition"><i
+                    class="text-slate-400 p-2 hover:bg-slate-800/50 hover:text-slate-300 rounded-full transition"><i
                         class="fas fa-times text-lg"></i></button>
             </div>
             <div id="cal-detail-content" class="flex-grow overflow-y-auto space-y-3 custom-scroll pb-4"></div>
         </div>
     </div>
 
-    <!-- Quick Edit Modal -->
-    <div id="quick-edit-modal" class="hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+    <!-- Pocket Modal -->
+    <div id="pocket-modal" class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="formal-card p-6 sm:p-8 w-full max-w-sm relative pocket-modal-content">
+            <h3 id="pocket-modal-title" class="font-bold text-slate-100 text-lg mb-4">Tambah Kantong</h3>
+            <input type="hidden" id="pocket-id">
+
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nama Kantong</label>
+                    <input type="text" id="pocket-name" class="w-full input-formal rounded-xl px-4 py-3 text-sm" placeholder="Misal: Beli Laptop">
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Tipe Kantong</label>
+                    <div class="flex gap-2">
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" name="pocket-type" value="saving" class="peer sr-only" checked>
+                            <div class="text-center py-2 text-xs font-bold rounded-lg border border-slate-800/80 text-slate-400 peer-checked:bg-emerald-500/10 peer-checked:text-emerald-400 peer-checked:border-emerald-500/30 transition">Tabungan</div>
+                        </label>
+                        <label class="flex-1 cursor-pointer">
+                            <input type="radio" name="pocket-type" value="budget" class="peer sr-only">
+                            <div class="text-center py-2 text-xs font-bold rounded-lg border border-slate-800/80 text-slate-400 peer-checked:bg-orange-500/10 peer-checked:text-orange-400 peer-checked:border-orange-500/30 transition">Budget</div>
+                        </label>
+                    </div>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Target / Limit (IDR)</label>
+                    <input type="text" inputmode="numeric" id="pocket-target" class="w-full input-formal rounded-xl px-4 py-3 font-mono text-sm math-input" placeholder="0">
+                </div>
+                <fieldset id="pocket-categories-group" class="hidden">
+                    <legend class="text-xs font-bold text-slate-300 mb-2">Kategori Terhubung</legend>
+                    <p class="text-xs text-slate-400 mb-2">Pengeluaran pada bulan yang dipilih otomatis dihitung berdasarkan kategori ini.</p>
+                    <div id="pocket-categories" class="pocket-category-list"></div>
+                </fieldset>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Warna / Ikon (Opsional)</label>
+                    <input type="text" id="pocket-icon" class="w-full input-formal rounded-xl px-4 py-3 text-sm" placeholder="Emoji (e.g. 💻) atau dikosongkan">
+                </div>
+            </div>
+
+            <div class="flex gap-2 mt-6">
+                <button id="pocket-cancel" class="flex-1 py-3 rounded-xl border border-slate-800/80 text-slate-300 font-bold hover:bg-slate-950/50 transition">Batal</button>
+                <button id="pocket-save" class="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">Simpan</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Pocket Allocate Modal -->
+    <div id="pocket-allocate-modal" class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="formal-card p-6 sm:p-8 w-full max-w-sm relative">
-            <h3 class="font-bold text-slate-900 text-lg mb-1">Quick Edit Amount</h3>
-            <p id="qe-desc" class="text-xs text-slate-500 mb-5 truncate"></p>
+            <h3 id="pocket-alloc-title" class="font-bold text-slate-100 text-lg mb-1">Alokasi Dana / Menabung</h3>
+            <p id="pocket-alloc-desc" class="text-xs text-slate-400 mb-4">Transfer antara wallet dan tabungan; bukan pengeluaran rutin.</p>
+            <input type="hidden" id="pocket-alloc-id">
+
+            <div class="space-y-4">
+                <div class="flex gap-2 mb-2 p-1 bg-slate-800/50 rounded-lg">
+                    <button type="button" id="btn-alloc-add" class="flex-1 py-1.5 text-xs font-bold rounded-md bg-slate-900/60 text-emerald-400 shadow-sm">Menabung</button>
+                    <button type="button" id="btn-alloc-sub" class="flex-1 py-1.5 text-xs font-bold rounded-md text-slate-400 hover:text-slate-200">Tarik ke Wallet</button>
+                </div>
+                <input type="hidden" id="pocket-alloc-type" value="add">
+
+                <div><label id="pocket-alloc-wallet-label" for="pocket-alloc-wallet" class="block text-xs font-semibold mb-2">Bank / Wallet Sumber (atau Tujuan Penarikan)</label>
+                    <select id="pocket-alloc-wallet" required class="w-full input-formal rounded-xl px-4 py-3"></select>
+                    <p id="pocket-alloc-wallet-hint" class="text-xs mt-2"></p>
+                </div>
+                <div>
+                    <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Nominal (IDR)</label>
+                    <input type="text" inputmode="numeric" id="pocket-alloc-amt" required class="w-full input-formal rounded-xl px-4 py-3 font-mono text-lg font-bold math-input" placeholder="0">
+                </div>
+            </div>
+
+            <div id="savings-transfer-preview" class="savings-transfer-preview" role="status" aria-live="polite"></div>
+            <div class="flex gap-2 mt-6">
+                <button id="pocket-alloc-cancel" class="flex-1 py-3 rounded-xl border border-slate-800/80 text-slate-300 font-bold hover:bg-slate-950/50 transition">Batal</button>
+                <button id="pocket-alloc-save" class="flex-1 py-3 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">Konfirmasi</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quick Edit Modal -->
+    <div id="quick-edit-modal" class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="formal-card p-6 sm:p-8 w-full max-w-sm relative">
+            <h3 class="font-bold text-slate-100 text-lg mb-1">Quick Edit Amount</h3>
+            <p id="qe-desc" class="text-xs text-slate-400 mb-5 truncate"></p>
             <input type="hidden" id="qe-id">
             <div class="mb-6">
-                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">New Amount</label>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">New Amount</label>
                 <div class="relative">
                     <span id="qe-curr" class="absolute inset-y-0 left-0 flex items-center pl-4 text-sm font-bold text-slate-400"></span>
                     <input type="text" inputmode="text" id="qe-amt" class="w-full input-formal rounded-xl pl-12 pr-4 py-3.5 font-mono text-lg font-bold math-input" required>
                 </div>
             </div>
             <div class="flex gap-3">
-                <button id="qe-cancel" class="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Cancel</button>
+                <button id="qe-cancel" class="flex-1 py-3 px-4 rounded-xl border border-slate-800/80 text-slate-300 font-bold hover:bg-slate-950/50 transition">Cancel</button>
                 <button id="qe-save" class="flex-1 py-3 px-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">Save</button>
             </div>
         </div>
     </div>
 
     <!-- Balance Adjustment Modal -->
-    <div id="balance-adj-modal" class="hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
+    <div id="balance-adj-modal" class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[80] flex items-center justify-center p-4 backdrop-blur-sm">
         <div class="formal-card p-6 sm:p-8 w-full max-w-sm relative">
-            <h3 class="font-bold text-slate-900 text-lg mb-1">Adjust Balance</h3>
-            <p id="adj-desc" class="text-xs text-slate-500 mb-5 truncate"></p>
+            <h3 class="font-bold text-slate-100 text-lg mb-1">Adjust Balance</h3>
+            <p id="adj-desc" class="text-xs text-slate-400 mb-5 truncate"></p>
             <input type="hidden" id="adj-acc">
             <input type="hidden" id="adj-curr">
             <input type="hidden" id="adj-old-amt">
             <div class="mb-6">
-                <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider">New Balance</label>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-2 ml-1 tracking-wider">New Balance</label>
                 <div class="relative">
                     <span id="adj-curr-lbl" class="absolute inset-y-0 left-0 flex items-center pl-4 text-sm font-bold text-slate-400"></span>
                     <input type="text" inputmode="text" id="adj-amt" class="w-full input-formal rounded-xl pl-12 pr-4 py-3.5 font-mono text-lg font-bold math-input" required>
                 </div>
             </div>
             <div class="flex gap-3">
-                <button id="adj-cancel" class="flex-1 py-3 px-4 rounded-xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition">Cancel</button>
+                <button id="adj-cancel" class="flex-1 py-3 px-4 rounded-xl border border-slate-800/80 text-slate-300 font-bold hover:bg-slate-950/50 transition">Cancel</button>
                 <button id="adj-save" class="flex-1 py-3 px-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition">Save</button>
             </div>
         </div>
     </div>
 
-    <div id="settings-modal"
-        class="hidden fixed inset-0 bg-slate-900/50 z-[70] flex items-center justify-center p-4 backdrop-blur-sm">
-        <div class="formal-card p-6 sm:p-8 w-full max-w-md relative overflow-hidden">
-            <button id="settings-close"
-                class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 w-8 h-8 flex items-center justify-center rounded-lg hover:bg-slate-100 transition">
-                <i class="fas fa-times text-lg"></i>
-            </button>
-            <h3 class="font-bold text-slate-900 text-xl mb-6 flex items-center gap-2"><i
-                    class="fas fa-cog text-indigo-600"></i>
-                Settings</h3>
-
-            <div class="space-y-6">
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider"><i
-                            class="fas fa-link mr-1 text-indigo-500"></i> Google Sheets Webhook URL</label>
-                    <input type="text" id="webhook-url-input"
-                        class="w-full input-formal rounded-xl px-4 py-3 text-sm placeholder-slate-400"
-                        placeholder="https://script.google.com/macros/s/...">
-                    <p class="text-[10px] text-slate-400 mt-2 ml-1">Paste your Google Apps Script Webhook URL for 2-way
-                        sync.</p>
-                </div>
-                
-                <div class="space-y-2">
-                    <button id="pull-data-btn" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition flex justify-center items-center gap-2"><i class="fas fa-cloud-download-alt"></i> Pull from Spreadsheet</button>
-                    <button id="push-data-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition flex justify-center items-center gap-2"><i class="fas fa-cloud-upload-alt"></i> Push to Spreadsheet</button>
-                    <div id="spreadsheet-status" class="text-xs text-slate-500 text-center mt-2"></div>
-                </div>
-                
-                <div>
-                    <label class="block text-[10px] font-bold text-slate-500 uppercase mb-2 ml-1 tracking-wider"><i
-                            class="fas fa-robot mr-1 text-emerald-500"></i> AI Processing Model</label>
-                    <select id="ai-model-select"
-                        class="w-full input-formal rounded-xl px-4 py-3 text-sm font-medium mb-4 appearance-none">
-                        <option value="gemini">Google Gemini (Default)</option>
-                        <option value="groq">Groq Llama 4 Scout Vision (Free, Fast)</option>
-                    </select>
-                </div>
-
-                <button id="save-settings-btn"
-                    class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 rounded-xl transition-all">Save
-                    Settings</button>
+    <div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="system-config-title" aria-describedby="system-config-subtitle"
+        class="cyber-modal hidden fixed inset-0 bg-slate-900/50 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
+        <div class="formal-card system-config-dialog p-5 sm:p-7 w-full max-w-4xl relative">
+            <div class="config-heading">
+                <div><h3 id="system-config-title" class="font-bold text-slate-100 text-xl">System Config</h3>
+                    <p id="system-config-subtitle" class="text-sm text-slate-400 mt-1">Manage categories, wallets, and account access</p></div>
+                <button id="settings-close" type="button" aria-label="Tutup System Config" class="config-close"><i class="fas fa-times" aria-hidden="true"></i></button>
             </div>
+            <p id="config-feedback" class="config-feedback" role="status" aria-live="polite">Perubahan chip tersimpan otomatis di browser ini.</p>
+            <div id="config-sections" class="grid grid-cols-1 md:grid-cols-2 gap-4"></div>
+            <section class="border border-slate-200 dark:border-slate-800 rounded-xl p-4 mt-4" aria-labelledby="gold-config-title">
+                <h4 id="gold-config-title" class="font-semibold text-sm mb-3">Harga Emas Pegadaian</h4>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div><label for="zpi-api-key" class="block text-xs mb-2">Zapi API key</label>
+                        <input id="zpi-api-key" type="password" autocomplete="off" spellcheck="false" class="w-full input-formal rounded-lg px-3 py-2" placeholder="zpi_...">
+                        <p class="text-xs text-slate-400 mt-2">Disimpan di browser ini, tidak disertakan dalam ekspor atau kode publik. Kosongkan lalu simpan untuk menghapus.</p>
+                    </div>
+                    <div><label for="pegadaian-gold-side" class="block text-xs mb-2">Dasar nilai aset emas</label>
+                        <select id="pegadaian-gold-side" class="w-full input-formal rounded-lg px-3 py-2">
+                            <option value="buyPerGram">Beli kembali ? Pegadaian membeli emas Anda</option>
+                            <option value="sellPerGram">Harga jual ? Anda membeli dari Pegadaian</option>
+                        </select>
+                        <p class="text-xs text-slate-400 mt-2">Nilai aset = saldo gram ? harga IDR per gram.</p>
+                    </div>
+                </div>
+                <button type="button" id="gold-api-save" class="workspace-action mt-4">Simpan key &amp; sinkronkan emas</button>
+                <p id="gold-api-status" role="status" aria-live="polite" class="text-xs text-slate-400 mt-3"></p>
+            </section>
+            <details class="config-connections border border-slate-800 rounded-xl p-4 mt-4">
+                <summary class="font-semibold text-sm cursor-pointer">Connections &amp; account access</summary>
+                <div class="space-y-4 mt-4">
+                    <p class="text-xs text-slate-400">Konfigurasi disimpan di browser ini. Koneksi spreadsheet tetap menggunakan URL yang Anda atur.</p>
+                    <div><label for="webhook-url-input" class="block text-xs text-slate-400 mb-2">Google Sheets Webhook URL</label>
+                        <input type="url" id="webhook-url-input" class="w-full input-formal rounded-xl px-4 py-3 text-sm" placeholder="https://script.google.com/macros/s/...">
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button type="button" id="pull-data-btn" class="bg-emerald-600 text-white font-bold py-3 rounded-xl text-sm">Pull from Spreadsheet</button>
+                        <button type="button" id="push-data-btn" class="bg-indigo-600 text-white font-bold py-3 rounded-xl text-sm">Push to Spreadsheet</button>
+                    </div>
+                    <div id="spreadsheet-status" class="text-xs text-slate-400" role="status"></div>
+                </div>
+            </details>
+            <div class="config-footer"><p>Menghapus item tidak menghapus riwayat transaksi.</p><button type="button" id="save-settings-btn" class="workspace-action">Selesai</button></div>
         </div>
     </div>
 
@@ -809,7 +902,7 @@
             <h1 class="text-3xl font-bold text-slate-900 mb-2">FinTracker E-Statement</h1>
             <p class="text-base text-slate-500 font-medium" id="print-period-text">Period: -</p>
         </div>
-        
+
         <div class="flex justify-between mb-8">
             <div class="bg-emerald-50 p-4 rounded-xl border border-emerald-100 flex-1 mr-4">
                 <p class="text-xs text-emerald-800 font-bold uppercase tracking-wider mb-1">Total Income</p>
@@ -844,48 +937,10 @@
         </div>
     </div>
     <!-- CATEGORY MANAGEMENT MODAL -->
-    <div id="category-modal" class="hidden fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-        <div class="bg-white rounded-3xl p-6 w-full max-w-md shadow-2xl relative flex flex-col max-h-[90vh]">
-            <div class="flex justify-between items-center mb-6">
-                <h2 class="text-xl font-bold text-slate-800 flex items-center gap-3">
-                    <div class="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 border border-indigo-100">
-                        <i class="fas fa-tags"></i>
-                    </div>
-                    Manajemen Kategori
-                </h2>
-                <button type="button" onclick="closeCategoryManager()" class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 hover:bg-slate-200 flex items-center justify-center transition">
-                    <i class="fas fa-times"></i>
-                </button>
-            </div>
-            
-            <div class="flex gap-2 mb-4">
-                <input type="text" id="new-cat-input" class="flex-1 input-formal rounded-xl px-4 py-2.5 text-sm placeholder-slate-400" placeholder="Kategori baru...">
-                <button type="button" onclick="addNewCategory()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 rounded-xl font-bold text-sm shadow-sm transition"><i class="fas fa-plus"></i></button>
-            </div>
-
-            <div class="flex-grow overflow-y-auto custom-scroll space-y-2 pr-1" id="category-list-container">
-                <!-- List of categories will be rendered here -->
-            </div>
-            
-            <div class="mt-6 pt-4 border-t border-slate-100">
-                <button type="button" onclick="resetCategories()" class="text-xs text-slate-500 hover:text-rose-500 transition font-medium flex items-center gap-2">
-                    <i class="fas fa-undo"></i> Reset ke bawaan pabrik
-                </button>
-            </div>
-        </div>
-    </div>
-
     <!-- Scripts -->
-    <script src="assets/js/utils.js"></script>
-    <script src="assets/js/storage.js"></script>
-    <script src="assets/js/config.js"></script>
-    <script src="assets/js/rates.js"></script>
-    <script src="assets/js/charts.js"></script>
-    <script src="assets/js/balance.js"></script>
-    <script src="assets/js/transactions.js"></script>
-    <script src="assets/js/gsheet.js"></script>
-    <script src="assets/js/app.js"></script>
-    <script src="assets/js/auth.js"></script>
+    <script src="assets/js/system-config.js"></script>
+    <script src="assets/js/budget-planning.js"></script>
+    <script src="assets/js/gold-price.js"></script>
     <script src="assets/js/script.js"></script>
 </body>
 

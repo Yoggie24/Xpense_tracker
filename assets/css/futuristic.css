@@ -1,0 +1,126 @@
+﻿/* FinTracker PRO: screen theme. Financial logic and print layout stay independent. */
+:root {
+    color-scheme: dark;
+    --ft-bg: #0b0f19;
+    --ft-surface: rgba(15, 23, 42, .72);
+    --ft-border: rgba(51, 65, 85, .65);
+    --ft-cyan: #06b6d4;
+    --ft-indigo: #6366f1;
+    --ft-success: #10b981;
+    --ft-warning: #f59e0b;
+    --ft-danger: #f43f5e;
+}
+body.fintracker-theme {
+    background: var(--ft-bg);
+    color: #e2e8f0;
+    background-image: radial-gradient(ellipse at 10% 0%, #6366f11c, transparent 45%), radial-gradient(ellipse at 95% 65%, #06b6d410, transparent 40%);
+}
+/* Shared surfaces */
+.formal-card, .glass-card, [id^="summary-"] {
+    background: linear-gradient(135deg, rgba(30, 41, 59, .65), var(--ft-surface));
+    border: 1px solid var(--ft-border);
+    border-radius: 1rem;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    box-shadow: 0 16px 40px #0003, inset 0 1px 0 #ffffff05;
+    transition: border-color .3s ease-out, box-shadow .3s ease-out, transform .3s ease-out;
+}
+@media (hover: hover) {
+    .tab-view .formal-card:hover, [id^="summary-"]:hover {
+        border-color: #6366f166;
+        box-shadow: 0 20px 45px #0004, 0 0 24px #6366f11a;
+    }
+    .pocket-card:hover, [id^="summary-"]:hover { transform: translateY(-4px); }
+}
+.stat-value, #wealth-display, .font-mono { font-variant-numeric: tabular-nums; letter-spacing: .025em; }
+.floating-header {
+    box-shadow: 0 12px 40px #0005, inset 0 1px 0 #ffffff08;
+    background: rgba(15, 23, 42, .82);
+}
+.brand-badge {
+    display: inline-flex; vertical-align: middle; padding: 4px 7px;
+    font-size: 10px; line-height: 1; font-weight: 700; letter-spacing: .12em;
+    border-radius: 6px; color: #a5f3fc; background: #06b6d41a;
+    border: 1px solid #06b6d466; box-shadow: 0 0 18px #06b6d426;
+}
+.quick-spend { box-shadow: 0 0 22px #06b6d42e; min-height: 40px; }
+.quick-spend:hover { filter: brightness(1.15); box-shadow: 0 0 30px #6366f14d; }
+#open-sidebar-btn i { transition: transform .3s ease, color .3s ease; }
+#open-sidebar-btn[aria-expanded="true"] i { transform: rotate(90deg); color: #67e8f9; }
+#sidebar-menu { box-shadow: 20px 0 70px #0006; }
+#sidebar-overlay { background: #020617b3; backdrop-filter: blur(8px); }
+.desk-nav-active { background: linear-gradient(90deg, #6366f133, #06b6d410) !important; color: #a5f3fc !important; box-shadow: inset 3px 0 var(--ft-cyan); }
+#mobile-nav { background: #0f172aeb; backdrop-filter: blur(20px); padding-bottom: env(safe-area-inset-bottom); }
+#main-content { scrollbar-gutter: stable; }
+/* Sunken controls and electric primary actions. ID keeps dynamic button states themed. */
+.input-formal, .input-glow, #dashboard-period {
+    color: #f1f5f9; background: rgba(2, 6, 23, .6); border: 1px solid #334155;
+    box-shadow: inset 0 2px 6px #0003;
+    transition: border-color .2s, box-shadow .2s;
+}
+.input-formal::placeholder, .input-glow::placeholder { color: #94a3b8; }
+.input-formal:focus, .input-glow:focus, #dashboard-period:focus {
+    outline: none; border-color: var(--ft-cyan); box-shadow: 0 0 0 1px var(--ft-cyan), 0 0 18px #06b6d41a;
+}
+select option { background: #0f172a; color: #f1f5f9; }
+#submit-btn, #pocket-save, #pocket-alloc-save, #add-pocket-btn, #qe-save, #adj-save {
+    background: linear-gradient(110deg, #6366f1, #9333ea, #db2777);
+    color: white; border: 1px solid #a78bfa4d; box-shadow: 0 8px 25px #6366f133;
+    transition: filter .2s, transform .2s, box-shadow .2s;
+}
+#submit-btn:hover, #pocket-save:hover, #pocket-alloc-save:hover, #add-pocket-btn:hover, #qe-save:hover, #adj-save:hover { filter: brightness(1.12); }
+button:active:not(:disabled) { transform: scale(.97); }
+button:disabled { cursor: wait; opacity: .55; }
+:where(button, a, input, select, textarea, [tabindex]):focus-visible { outline: 2px solid #67e8f9; outline-offset: 4px; }
+input[type="radio"]:focus-visible + div { outline: 2px solid #67e8f9; outline-offset: 2px; }
+/* Dialogs are scrollable on short screens, with an opaque fallback under blur. */
+.cyber-modal { background: #020617bf; backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px); overflow-y: auto; }
+.cyber-modal > div { background-color: #0f172af5; max-height: 90dvh; overflow-y: auto; box-shadow: 0 30px 100px #0009; }
+.cyber-modal .formal-card:hover { transform: none; }
+/* Budget health: visible labels accompany every semantic color. */
+.pocket-card { --pocket-color: var(--ft-success); --pocket-rgb: 16, 185, 129; min-width: 0; }
+.pocket-card[data-state="saving"] { --pocket-color: var(--ft-cyan); --pocket-rgb: 6, 182, 212; }
+.pocket-card[data-state="warning"] { --pocket-color: var(--ft-warning); --pocket-rgb: 245, 158, 11; }
+.pocket-card[data-state="over"] { --pocket-color: var(--ft-danger); --pocket-rgb: 244, 63, 94; }
+.pocket-card[data-state="over"], .pocket-card[data-state="over"]:hover {
+    border-color: #f43f5e80; box-shadow: 0 0 28px #f43f5e20, inset 0 1px 0 #f43f5e1a;
+}
+.pocket-card h4 { overflow-wrap: anywhere; }
+.pocket-actions button { min-width: 32px; min-height: 32px; }
+.pocket-status { display: flex; align-items: center; gap: 7px; width: fit-content; margin: 14px 0 12px; padding: 5px 9px; border-radius: 7px; font-size: 11px; font-weight: 600; color: var(--pocket-color); background: rgba(var(--pocket-rgb), .09); border: 1px solid rgba(var(--pocket-rgb), .25); }
+.status-dot { width: 5px; height: 5px; border-radius: 50%; background: currentColor; box-shadow: 0 0 8px currentColor; }
+.pocket-progress-bar { height: 8px; background: #020617; overflow: visible; box-shadow: inset 0 1px 4px #0008; }
+.pocket-progress-fill { background: linear-gradient(90deg, rgba(var(--pocket-rgb), .55), var(--pocket-color)); box-shadow: 0 0 12px rgba(var(--pocket-rgb), .4); }
+.pocket-category-tags span { background: #6366f112; border: 1px solid #6366f133; color: #c7d2fe; border-radius: 8px; padding: 5px 8px; transition: border-color .2s, background .2s; }
+.pocket-category-tags span:hover { border-color: #06b6d480; background: #06b6d41a; }
+.pocket-category-list { background: #02061780; border-color: #334155; }
+.pocket-category-option { min-height: 40px; }
+.pocket-category-option:has(input:checked) { background: #6366f11f; color: #a5f3fc; }
+.pocket-category-option input { accent-color: var(--ft-cyan); }
+/* Floating rows retain semantic table markup and horizontal scroll. */
+.floating-table { border-collapse: separate; border-spacing: 0 10px; padding: 0 10px; }
+.floating-table thead { background: transparent; }
+.floating-table tbody tr, .floating-table tbody { border: 0; }
+.floating-table tbody td { background: #0f172a99; border: 0; transition: background .2s, box-shadow .2s; }
+.floating-table tbody td:first-child { border-radius: 12px 0 0 12px; }
+.floating-table tbody td:last-child { border-radius: 0 12px 12px 0; }
+.floating-table tbody tr:hover td { background: #164e632e; box-shadow: inset 0 1px #06b6d433, inset 0 -1px #06b6d433; }
+#mobile-trans-list > div { border: 1px solid var(--ft-border); background: var(--ft-surface); border-radius: 14px; }
+#mobile-trans-list > div:hover { border-color: #06b6d466; }
+@media (max-width: 640px) {
+    .floating-header { gap: 12px; }
+    .floating-header h2 { font-size: 20px; }
+    .pocket-actions button { min-width: 36px; min-height: 36px; }
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; scroll-behavior: auto !important; }
+    .pocket-card:hover, [id^="summary-"]:hover, button:active:not(:disabled) { transform: none; }
+}
+@media print {
+    :root { color-scheme: light; }
+    body.fintracker-theme { background: white; }
+    #e-statement-print-area { color: #0f172a; }
+    #e-statement-print-area .text-slate-100, #e-statement-print-area .text-slate-300, #e-statement-print-area .text-slate-400 { color: #334155; }
+    #e-statement-print-area .text-emerald-400 { color: #047857; }
+    #e-statement-print-area .text-rose-400 { color: #be123c; }
+}
